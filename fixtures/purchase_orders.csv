@@ -1,0 +1,20 @@
+po_number,vendor_code,po_date,line_no,item_description,quantity,unit_price,currency
+PO-2026-001,V001,2026-07-01,1,Jasa pengiriman Jakarta-Bandung (trip),12,1850000,IDR
+PO-2026-001,V001,2026-07-01,2,Asuransi kargo,12,150000,IDR
+PO-2026-002,V002,2026-07-03,1,Servis AC split 2 PK,8,350000,IDR
+PO-2026-002,V002,2026-07-03,2,Freon R32 (kg),4,275000,IDR
+PO-2026-003,V003,2026-07-05,1,Cetak brosur A4 full color (rim),20,450000,IDR
+PO-2026-003,V003,2026-07-05,2,Cetak kartu nama (box),30,85000,IDR
+PO-2026-004,V004,2026-07-08,1,Laptop 14 inch i5/16GB/512GB,5,12500000,IDR
+PO-2026-004,V004,2026-07-08,2,Docking station USB-C,5,1750000,IDR
+PO-2026-005,V005,2026-07-10,1,Katering makan siang (porsi),450,45000,IDR
+PO-2026-006,V007,2026-07-12,1,Jasa kebersihan kantor (bulan),1,18500000,IDR
+PO-2026-007,V009,2026-07-15,1,Produksi video profil perusahaan,1,120000000,IDR
+PO-2026-008,V010,2026-07-16,1,Kertas A4 80gsm (rim),100,52000,IDR
+PO-2026-008,V010,2026-07-16,2,Toner HP 85A,10,890000,IDR
+PO-2026-008,V010,2026-07-16,3,Pulpen gel (lusin),25,36000,IDR
+PO-2026-009,V006,2026-07-18,1,Bahan kimia pembersih industri (drum),6,2400000,IDR
+PO-2026-010,V001,2026-07-20,1,Jasa pengiriman Jakarta-Surabaya (trip),6,3200000,IDR
+PO-2026-011,V003,2026-07-22,1,Cetak spanduk 3x1 m,10,175000,IDR
+PO-2026-012,V005,2026-07-25,1,Snack box rapat (box),200,25000,IDR
+PO-2026-012,V005,2026-07-25,2,Air mineral 600ml (dus),40,48000,IDR
