@@ -76,11 +76,11 @@ Read CLAUDE.md and docs/product-doc-v2.md sections 3, 8, 11, 12.1, and 13 before
 Goal of this phase: project skeleton with multi-tenant database and auth. No business features yet.
 
 Tasks:
-1. Initialize Next.js 15 (App Router, TypeScript, Tailwind, ESLint) in the current directory. Add shadcn/ui with Button, Card, Table, Badge, Dialog, Form, Input, Select.
+1. Initialize Next.js 16 (App Router, TypeScript, Tailwind, ESLint) in the current directory. Add shadcn/ui with Button, Card, Table, Badge, Dialog, Form, Input, Select.
 2. Add Supabase: @supabase/supabase-js and @supabase/ssr. Create lib/supabase/client.ts, server.ts, admin.ts (service role, server-only). Use docs/llm-context for the current SSR pattern; do not use deprecated auth-helpers.
 3. Write supabase/migrations/0001_init.sql creating every table in product-doc section 11 with the exact columns, the enums from section 8 as Postgres enums, organization_id on every table, and RLS policies: a row is visible/writable only when organization_id equals the caller's profiles.organization_id. Make audit_logs append-only at the DB level (revoke UPDATE/DELETE from authenticated and anon; add a trigger that raises on UPDATE/DELETE).
 4. Write supabase/seed.sql: one organization "Demo Corp", and instructions in a comment for creating three users (admin, ap_staff, approver) then inserting their profiles.
-5. Auth pages: (auth)/login and (auth)/register (register only creates the auth user; profile/org assignment is done by seed for MVP). middleware.ts redirects unauthenticated users to /login.
+5. Auth pages: (auth)/login and (auth)/register (register only creates the auth user; profile/org assignment is done by seed for MVP). proxy.ts (Next 16 name for middleware.ts) redirects unauthenticated users to /login.
 6. Dashboard layout with sidebar links to every route in section 13, each rendering an empty placeholder page. Sidebar shows current user's role.
 7. types/domain.ts with the enums from section 8. Generate types/database.types.ts after migration (add an npm script for it).
 8. Vitest configured; one trivial passing test.

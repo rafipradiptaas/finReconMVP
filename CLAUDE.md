@@ -23,7 +23,7 @@ Concrete consequences:
 
 ## Stack (MVP)
 
-Next.js 15 App Router + TypeScript · Tailwind + shadcn/ui · Supabase (Postgres, Auth email/password, Storage; region Singapore) with RLS on every table · `@supabase/ssr` (not the deprecated auth-helpers) · Zod · PapaParse · pdf-parse · `@anthropic-ai/sdk` · Vitest · deployed on Vercel.
+Next.js 16 App Router + TypeScript (root `proxy.ts`, not `middleware.ts` — deprecated in Next 16) · Tailwind + shadcn/ui · Supabase (Postgres, Auth email/password, Storage; region Singapore) with RLS on every table · `@supabase/ssr` (not the deprecated auth-helpers) · Zod · PapaParse · pdf-parse · `@anthropic-ai/sdk` · Vitest · deployed on Vercel.
 
 LLM: one Claude Sonnet model for both extraction and explanations. Check `docs/llm-context/` or docs.claude.com for the current model string before hardcoding; put it in one constant in `lib/llm/client.ts`. Force JSON via tool-use (`tool_choice` forcing a single tool whose input schema is the Zod schema converted to JSON Schema), then validate with Zod anyway.
 

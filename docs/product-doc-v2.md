@@ -386,7 +386,7 @@ Semua tabel punya `organization_id` sejak migration pertama + RLS: `organization
 
 | Layer | Teknologi | Catatan |
 |---|---|---|
-| Framework | Next.js 15 (App Router) + TypeScript | Single app; Route Handlers untuk API |
+| Framework | Next.js 16 (App Router) + TypeScript | Single app; Route Handlers untuk API. `middleware.ts` sudah deprecated di Next 16 dan berganti nama jadi `proxy.ts` — fungsinya identik |
 | UI | Tailwind CSS + shadcn/ui | Tambah komponen per kebutuhan (Button, Table, Card, Dialog, Badge, Form) |
 | Database | Supabase Postgres, region **Singapore** | `organization_id` + RLS di semua tabel |
 | Auth | Supabase Auth (email/password) | OAuth ditunda |
@@ -496,7 +496,7 @@ finrecon-ai/
 │   └── domain.ts                  # enum Bagian 8
 ├── tests/
 │   └── matching/                  # veto, scoring, classify, anomaly, similarity
-└── middleware.ts
+└── proxy.ts                       # dulu middleware.ts (deprecated di Next 16)
 ```
 
 ---
