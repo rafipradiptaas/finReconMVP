@@ -3,7 +3,7 @@
 B2B SaaS pre-payment control layer for corporate Accounts Payable (Indonesia). An LLM reads vendor invoices; deterministic code checks every value it read, matches invoices against purchase orders and vendor master data, rejects risky payments with hard rules, and routes grey cases to a human review panel built to resist rubber-stamping. Everything is recorded in an immutable audit trail.
 
 Sources of truth, in order:
-1. `docs/decisions/2026-10-31-v3.md` (decision log D1–D18)
+1. `docs/decisions/2026-10-31-v3.md` (decision log D1–D18, D21)
 2. `docs/product-doc.md` (v3 specification; section numbers below refer to it)
 3. this file
 
@@ -100,9 +100,11 @@ Tests first for every deterministic folder; 100% coverage on `lib/matching`.
 ## Data access rules
 
 - Every table has `organization_id` + RLS scoped to the caller's org, from its first migration.
-- Chatbot and agent tools use the **user-scoped** server client (RLS active). Never `lib/supabase/admin.ts` there.
-- `admin.ts` (service role) only for explicit server jobs (CSV import, history import) and must filter `organization_id` manually.
-- `audit_logs` is append-only via REVOKE + trigger (blocks service role too). Never work around it.
+- `anon` and `authenticated` are **read-only** on every table (D21): INSERT/UPDATE/DELETE/TRUNCATE are revoked. Org-scoped SELECT policies stay.
+- All writes go through server API routes via `lib/server/write-context.ts`: verify session, load profile (role, organization_id), apply role/SoD/`lib/review` checks, then write with the service-role client (`lib/supabase/admin.ts`) filtering `organization_id` explicitly. No route writes without it.
+- Chatbot and agent tools **read** with the user-scoped server client (RLS active), never `admin.ts`. Agent writes (`save_draft`, reply records) go through server functions that take `organization_id` from the session, never from the LLM.
+- `profiles.role` changes only through an admin route or the seed; no self-service. Users are never deleted, only deactivated (`profiles.deactivated_at`).
+- `audit_logs` is append-only via REVOKE + trigger (blocks service role too); its FKs never use `ON DELETE SET NULL/CASCADE`. Never work around it.
 - Files live in bucket `documents` at `{organization_id}/{document_id}.pdf` and are never deleted.
 - Role checks happen server-side from `profiles.role`.
 
@@ -129,3 +131,13 @@ Tests first for every deterministic folder; 100% coverage on `lib/matching`.
 - Run the verification for each part before moving on; commit at the end of each phase with `phase N:` in the message.
 - If a request would move a decision into the AI zone or let an LLM touch a state transition or send email, push back and cite this file.
 - Fixtures are in `fixtures/`; generate data with `eval/generate.py` instead of inventing sample data.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

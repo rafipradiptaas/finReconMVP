@@ -3,7 +3,7 @@
 **Lapisan kontrol sebelum pembayaran untuk modul Accounts Payable**
 Disusun untuk Tim FinRecon AI · 31 Oktober 2026 · Menggantikan Versi 2 (September 2026)
 
-Sumber kebenaran keputusan: `docs/decisions/2026-10-31-v3.md` (D1–D18). Kalau dokumen ini dan decision log berbeda, decision log yang benar dan dokumen ini wajib diperbaiki.
+Sumber kebenaran keputusan: `docs/decisions/2026-10-31-v3.md` (D1–D18, D21). Kalau dokumen ini dan decision log berbeda, decision log yang benar dan dokumen ini wajib diperbaiki.
 
 ---
 
@@ -29,6 +29,7 @@ Sumber kebenaran keputusan: `docs/decisions/2026-10-31-v3.md` (D1–D18). Kalau 
 | D16 | Demo | Lima skenario demo baru. |
 | D17 | Posisi | "Control layer"; daftar ide yang ditolak dicatat. |
 | D18 | Edge case | Vendor tak dikenal = veto; tanpa pencarian kandidat PO; cek duplikat hanya ke APPROVED/PAID (+ peringatan); folder `lib/review/` dan `lib/followup-checks/`. |
+| D21 | Hak tulis | `anon`/`authenticated` hanya baca. Semua tulis lewat API route server. User tidak pernah dihapus, hanya dinonaktifkan. |
 
 ---
 
@@ -123,7 +124,7 @@ AI/LLM **hanya** untuk tugas interpretatif. Semua keputusan finansial dijalankan
 | `approver` | Semua yang `ap_staff` boleh + menandai `PAID` + chatbot | Import CSV, kelola user |
 
 - Semua approver setara (belum ada batas nominal / delegation of authority).
-- Status vendor `verified` ditetapkan **manusia** (`admin` atau `ap_staff`). Sistem hanya memberi indikator (Bagian 5.3).
+- Status vendor `verified` ditetapkan **manusia** (`admin`, `ap_staff`, atau `approver`, sesuai tabel di atas; D21). Sistem hanya memberi indikator (Bagian 5.3).
 - **SoD di MVP (D7):**
   - Pengunggah dokumen (`documents.uploaded_by`) **tidak boleh** mencatat keputusan review (approve/reject) pada match dokumen itu. Server mengembalikan 403. Catatan investigasi tetap boleh.
   - Menandai `PAID` hanya `approver`.
@@ -464,7 +465,7 @@ Selalu `vendors.contact_email` dari master data. **Tidak pernah** diambil dari i
 
 - **Tidak ada tool kirim.** Tidak ada tool yang mengubah data vendor/rekening atau status apa pun.
 - Loop sendiri dengan Anthropic SDK tool use; `MAX_AGENT_ITERATIONS` (6) di `lib/agent/config.ts`; berhenti juga bila `save_draft` sudah dipanggil (mode draft).
-- Query memakai client user (RLS aktif), `organization_id` dari session (D8).
+- Baca memakai client user (RLS aktif), `organization_id` dari session (D8). Tulis (`save_draft`, catatan balasan) lewat fungsi server yang mengambil `organization_id` dari session, bukan dari LLM (D21).
 - Semua panggilan dicatat di `llm_calls` (`agent_followup` / `agent_reply`).
 
 ### 10.4 Mengirim
@@ -580,12 +581,17 @@ Kalimat headline: *"X% field kritis auto-verified dengan akurasi Y%."* Hasilnya 
 
 ## 14. Model Data Inti
 
-Semua tabel punya `organization_id` + RLS: `organization_id = (select organization_id from profiles where id = auth.uid())`. Kode yang memakai service role (`admin.ts`) wajib memfilter `organization_id` manual dan hanya dipakai untuk job server eksplisit (import CSV, loader histori).
+Semua tabel punya `organization_id` + RLS: `organization_id = (select organization_id from profiles where id = auth.uid())`.
+
+**Hak akses (D21):**
+- Role `anon` dan `authenticated` **hanya baca**: INSERT/UPDATE/DELETE/TRUNCATE dicabut di semua tabel. Policy SELECT per organisasi tetap ada.
+- Semua penulisan lewat API route server via `lib/server/write-context.ts`: verifikasi session, muat profil (role, `organization_id`), jalankan cek role/SoD/`lib/review`, lalu tulis memakai service role (`admin.ts`) dengan filter `organization_id` eksplisit.
+- `profiles.role` hanya berubah lewat route admin atau seed. User tidak pernah dihapus, hanya dinonaktifkan (`profiles.deactivated_at`). FK `audit_logs` tidak memakai `ON DELETE SET NULL/CASCADE`.
 
 | Tabel | Kolom kunci |
 |---|---|
 | `organizations` | `id, name, created_at` |
-| `profiles` | `id (= auth.users.id), organization_id, role, full_name` |
+| `profiles` | `id (= auth.users.id), organization_id, role, full_name, deactivated_at?` |
 | `vendors` | `id, organization_id, vendor_code, vendor_name, npwp, bank_name, bank_account_number, bank_account_holder, status, last_verified_at, contact_email?` — unik `(organization_id, vendor_code)` |
 | `purchase_orders` | `id, organization_id, po_number, vendor_id, po_date, currency, total_amount` — unik `(organization_id, po_number)` |
 | `purchase_order_lines` | `id, organization_id, po_id, line_no, item_description, quantity, unit_price` |

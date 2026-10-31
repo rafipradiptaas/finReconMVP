@@ -60,6 +60,8 @@ git checkout main && git merge docs/v3
 
 Cara pakai: `/clear` → plan mode → tempel prompt → setujui rencana → biarkan jalan → lakukan checklist "Verifikasi" di bawah prompt → merge.
 
+**D21 berlaku untuk semua prompt:** `anon`/`authenticated` hanya baca, semua tulis lewat `lib/server/write-context.ts`. Kalau prompt menyuruh route atau tool menulis dengan client user, ikuti D21.
+
 ### Sesi A — Fase 1b + 2: Fondasi & Master Data
 
 ```
@@ -77,7 +79,7 @@ PHASE 1b — close Phase 1
    - extractions: organization_id, text_items, prompt_version, checks_version;
    - new tables investigation_notes, review_sessions, followups, followup_replies, llm_calls with exact columns from section 14;
    - new Postgres enums from section 8 (FieldVerification, FollowupStatus, LlmPurpose);
-   - organization_id + RLS (select/insert/update scoped to the caller's org) on every new table; no DELETE policy on any table except where section 14 implies it (none in MVP);
+   - organization_id + org-scoped SELECT RLS on every new table; anon and authenticated read-only on every table (D21);
    - confirm audit_logs append-only (REVOKE + trigger) still holds, and that the trigger blocks the service role too.
    Apply it, regenerate types, update types/domain.ts with the full enum set from section 8.
 5. Extend the RLS integration tests: for every table (old and new), a user of org B cannot select or insert rows of org A; UPDATE/DELETE on audit_logs fails for authenticated and for the service role.
@@ -88,7 +90,7 @@ Checks for 1b: npm test (all green incl. RLS), npm run typecheck, npm run lint, 
 PHASE 2 — master data
 7. lib/csv/vendors.ts and lib/csv/purchase-orders.ts: PapaParse + Zod per row against sections 5.1 and 5.2 (NPWP digits 15–16; bank_account_number digits; status enum; contact_email optional but valid email; PO vendor_code must exist in the org; quantity > 0; unit_price ≥ 0). Return {ok:true, rows} or {ok:false, errors:[{row, column, message}]}; any error rejects the whole file.
 8. lib/audit.ts: logAudit({entityType, entityId, action, oldValue, newValue, reason}) filling organization_id, actor_user_id and actor_role from the session. Reuse it everywhere from now on.
-9. API: POST /api/vendors/import and /api/purchase-orders/import (admin only, role checked server-side). Vendors upsert on (organization_id, vendor_code). POs grouped by po_number into purchase_orders + purchase_order_lines; total_amount computed. Audit one row per batch with counts, plus one row per vendor whose status, bank fields, or contact_email changed (old/new). PATCH /api/vendors/[id]/status (admin, ap_staff) audited with old/new.
+9. API: POST /api/vendors/import and /api/purchase-orders/import (admin only, role checked server-side). Vendors upsert on (organization_id, vendor_code). POs grouped by po_number into purchase_orders + purchase_order_lines; total_amount computed. Audit one row per batch with counts, plus one row per vendor whose status, bank fields, or contact_email changed (old/new). PATCH /api/vendors/[id]/status (admin, ap_staff, approver) audited with old/new.
 10. /vendors page: table, readiness indicator per section 5.3, "kontak belum ada" marker when contact_email is empty, import dialog showing per-row errors, status change action. /purchase-orders page: table with expandable lines. Indonesian labels.
 11. Add contact_email to fixtures/vendors.csv for every vendor except one (so the "no contact" path is testable later). Update fixtures/README.md accordingly.
 12. Unit tests for both validators using the fixtures plus hand-written invalid cases (14-digit NPWP on row 3, unknown vendor_code, bad email, non-digit account).
@@ -289,7 +291,7 @@ Run git log --oneline -15 and the test suite to confirm the state, then rebuild 
 | Banyak field `unverified` padahal benar | Normalisasi terlalu ketat | Tambah format di `normalize.ts` + test; **jangan** longgarkan aturan verifikasi |
 | Timeout upload di Vercel | Ekstraksi > limit | Cek `maxDuration`/plan Vercel; uji lokal dulu |
 | Skor terasa "salah" | Bobot/ambang belum dikalibrasi | Jangan ubah kode; ubah `config.ts` + tambah test kasusnya |
-| RLS memblokir query | Pakai client yang salah | Route user → client user (RLS). Hanya job server eksplisit (import CSV/histori) boleh `admin.ts` **dengan** filter `organization_id` manual. Chatbot & agent **tidak pernah** `admin.ts` |
+| RLS memblokir query | Pakai client yang salah | Baca → client user (RLS). Tulis → `lib/server/write-context.ts` (service role **dengan** filter `organization_id` manual, D21). Tool baca chatbot & agent **tidak pernah** `admin.ts` |
 | Agent ingin "mengirim" atau "memperbarui rekening" | Scope creep / prompt injection | Tolak; tidak ada tool untuk itu by design (CLAUDE.md) |
 | Biaya eval membengkak | Terlalu banyak dokumen/model | Jalankan subset; pakai `eval:smoke` untuk iterasi prompt |
 | Claude Code menambah fitur di luar fase | Scope creep | `Esc`, ingatkan definisi selesai fase, minta hapus |
