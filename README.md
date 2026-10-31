@@ -28,16 +28,23 @@ npm run dev
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API |
 | `SUPABASE_SERVICE_ROLE_KEY` | idem (server-only, jangan pernah dipakai di client) |
-| `ANTHROPIC_API_KEY` | console.anthropic.com (baru dipakai Fase 3) |
+| `ANTHROPIC_API_KEY` | console.anthropic.com (dipakai mulai Fase 3) |
+| `EMAIL_MODE` | `dry_run` (default) atau `resend` (dipakai Fase 7) |
+| `RESEND_API_KEY`, `EMAIL_FROM` | resend.com, hanya kalau `EMAIL_MODE=resend` |
+
+Di Vercel staging, Fase 2 hanya butuh tiga variabel Supabase; sisanya ditambahkan
+saat fase pemakainya selesai. `vercel.json` tidak diperlukan: batas waktu route
+diatur dengan `export const maxDuration` di route-nya.
 
 ## Database
 
-Tanpa Supabase CLI — semua lewat Supabase Dashboard:
+Migration dijalankan manual di Supabase Dashboard. CLI hanya dipakai untuk
+generate types, karena `0001` diterapkan manual sehingga `db push` akan
+menjalankannya ulang.
 
 1. **SQL Editor** → jalankan isi
-   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
-   Migration berikutnya (`0002_…`) juga dijalankan manual dengan cara yang
-   sama, berurutan, masing-masing sekali.
+   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), lalu
+   [`0002_v3.sql`](supabase/migrations/0002_v3.sql). Berurutan, masing-masing sekali.
 2. **Authentication → Users → Add user** ×3 dengan "Auto Confirm User"
    aktif: `admin@democorp.test`, `ap_staff@democorp.test`,
    `approver@democorp.test`. Email tidak perlu asli; password minimal 6
@@ -46,20 +53,31 @@ Tanpa Supabase CLI — semua lewat Supabase Dashboard:
    Membuat organisasi "Demo Corp" dan menautkan ketiga user ke profil beserta
    perannya. Aman dijalankan ulang.
 
-`types/database.types.ts` belum di-generate; klien Supabase belum memakai
-generik `<Database>`. Tambahkan saat query mulai banyak (Fase 2+).
+Setelah skema berubah, generate ulang types (sekali `npx supabase login` dulu):
+
+```bash
+npm run db:types
+```
+
+**Hak akses (D21):** role `anon` dan `authenticated` hanya baca. Semua penulisan
+lewat API route yang dibungkus `withWriteContext` di
+[`lib/server/write-context.ts`](lib/server/write-context.ts). User tidak pernah
+dihapus, hanya dinonaktifkan lewat `profiles.deactivated_at`.
 
 ## Uji
 
 ```bash
 npm test        # unit test + test integrasi RLS (butuh .env.local terisi)
+npm run typecheck
 npm run lint
 npm run build
 ```
 
 `tests/rls.integration.test.ts` membuat dua organisasi sementara di project
-Supabase asli, membuktikan user org B tidak melihat data org A, lalu
-membersihkannya. Test ini otomatis di-skip kalau env belum terisi.
+Supabase asli, membuktikan isolasi antar-organisasi dan bahwa anon key tidak
+bisa menulis ke tabel mana pun, lalu membersihkannya. Satu organisasi
+`RLS Audit Fixture (do not delete)` sengaja tertinggal karena baris audit tidak
+bisa dihapus. Test ini otomatis di-skip kalau env belum terisi.
 
 Cek manual append-only `audit_logs` di SQL Editor (harus gagal keduanya):
 
@@ -76,18 +94,21 @@ delete from audit_logs;
 | `lib/llm/`, `lib/agent/`, `lib/chatbot/` | AI | Ekstraksi, narasi, agent follow-up, chatbot (Fase 3, 5, 7, 8) |
 | `lib/supabase/` | — | `client` (browser), `server` (per-request), `admin` (service role, bypass RLS) |
 | `lib/auth.ts` | — | `getSessionContext()` — satu-satunya sumber `organization_id` |
+| `lib/server/write-context.ts` | Deterministik | Satu-satunya jalur tulis: sesi, role, lalu service role (D21) |
+| `lib/audit.ts` | Deterministik | `logAudit()` ke `audit_logs` yang append-only |
+| `lib/csv/` | — | Validasi file CSV vendor dan PO |
 
 `proxy.ts` di root menyegarkan sesi Supabase dan menendang anonim ke `/login`.
 Di Next.js 16 nama file `middleware.ts` sudah deprecated.
 
 ## Status fase
 
-Rencana v3 (D14). Fase 1 baru dianggap selesai setelah verifikasi di Fase 1b.
+Rencana v3 (D14). Vercel staging menunggu perintah manual di bawah.
 
 - [x] **Fase 0** — repo, dokumen, `docs/llm-context/`, fixtures, `.env.example`
-- [ ] **Fase 1** — skeleton Next.js, migration + RLS, auth, layout dashboard (kode sudah di-merge, verifikasi terbuka)
-- [ ] Fase 1b — tutup Fase 1: Supabase pulih, shadcn Form, generate types, tes RLS hijau, Vercel staging
-- [ ] Fase 2 — master data (vendor & PO, `contact_email`), migration 0002
+- [x] **Fase 1** — skeleton Next.js, migration + RLS, auth, layout dashboard
+- [x] **Fase 1b** — tutup Fase 1: Supabase pulih, shadcn Form, generate types, tes RLS hijau, migration 0002, D21
+- [x] **Fase 2** — master data (vendor & PO, `contact_email`)
 - [ ] Fase 3 — upload → ekstraksi → extraction checks → koreksi, generator v1
 - [ ] Fase 4 — matching engine (test-first)
 - [ ] Fase 5 — review panel, gesekan sesuai risiko, SoD, PAID, narasi, audit log (checkpoint demo BizDev)
