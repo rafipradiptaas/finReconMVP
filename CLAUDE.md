@@ -1,93 +1,131 @@
 # FinRecon AI — CLAUDE.md
 
-B2B SaaS pre-payment control layer for corporate Accounts Payable (Indonesia). Reads vendor invoices with an LLM, matches them against purchase orders and vendor master data with deterministic code, rejects risky payments with hard rules, routes grey cases to human review, and keeps an immutable audit trail.
+B2B SaaS pre-payment control layer for corporate Accounts Payable (Indonesia). An LLM reads vendor invoices; deterministic code checks every value it read, matches invoices against purchase orders and vendor master data, rejects risky payments with hard rules, and routes grey cases to a human review panel built to resist rubber-stamping. Everything is recorded in an immutable audit trail.
 
-The full specification is `docs/product-doc-v2.md`. The phase-by-phase plan is `docs/dev-guide.md`. When this file and the product doc disagree, the product doc wins — tell the user about the conflict.
+Sources of truth, in order:
+1. `docs/decisions/2026-10-31-v3.md` (decision log D1–D18)
+2. `docs/product-doc.md` (v3 specification; section numbers below refer to it)
+3. this file
 
-## The one rule that matters most: AI zone vs deterministic zone
+If they disagree, the higher one wins — tell the user about the conflict. The work plan and session prompts are in `docs/dev-guide.md`.
 
-**AI (LLM) is only used for interpretive work.** Every financial decision is made by ordinary deterministic code.
+## The rule that matters most: AI zone vs deterministic zone
 
-| Zone | Folders | May do | Must never do |
+LLMs only do interpretive work. Every financial decision is ordinary deterministic code. LLM output is **data**: validated, checked, stored — never a command.
+
+| Zone | Folders | May | Must never |
 |---|---|---|---|
-| AI | `lib/llm/`, `lib/chatbot/` | Extract fields from PDF text, assign per-field confidence, write Indonesian explanations from values it is given, answer chatbot questions from tool results | Decide match status, compute scores, approve/reject, mark paid, write to `matches.status`/`review_status`, read data outside the org session |
-| Deterministic | `lib/document-router/`, `lib/matching/`, `lib/audit.ts`, all API route decision logic | Everything decision-related | Import from `lib/llm/` or `lib/chatbot/`; call any network/LLM |
+| AI | `lib/llm/`, `lib/agent/`, `lib/chatbot/` | Extract fields with `source_text`; write Indonesian text from values it is given; draft follow-up emails; propose (not apply) a PO number; flag suspicious replies (display only); answer chatbot questions from tool results | Decide or write any status, score, review decision, PAID, vendor/bank data; send email; read data outside the session's organization |
+| Deterministic | `lib/document-router/`, `lib/extraction-checks/`, `lib/matching/`, `lib/review/`, `lib/followup-checks/`, `lib/email/`, `lib/audit.ts`, API route decision logic | Everything decision-related | Import from `lib/llm/`, `lib/agent/`, `lib/chatbot/`; call an LLM |
 
-Concrete consequences:
-- `lib/matching/**` and `lib/document-router/**` must not import anything from `lib/llm/**` or `lib/chatbot/**`. If you find yourself needing to, stop and ask.
-- `lib/matching/**` is pure: no I/O, no Supabase, no `Date.now()` without injection. Inputs in, `MatchResult` out.
-- LLM output is data, never a command. It is validated with Zod and stored; it never triggers a state transition by itself.
-- When the LLM fails (timeout, invalid JSON, API error), the pipeline continues. Explanations become `null`; extraction goes to `EXTRACTION_FAILED`. Never let an LLM error block or alter a deterministic decision.
-- Numbers, account numbers, and names in any LLM-written text must come from the input we passed it. Never ask the LLM to "figure out" a value that exists in the database.
-- `organization_id` always comes from the server session (`profiles.organization_id` for `auth.uid()`). It is never a request parameter, never a chatbot tool argument, never trusted from the client.
+Hard consequences:
+- Deterministic folders must not import from AI folders. `lib/extraction-checks`, `lib/matching`, `lib/review`, `lib/followup-checks` are **pure**: no I/O, no Supabase, no network, no `Date.now()` without injection.
+- When an LLM fails, the pipeline continues: explanation → `null`; extraction → `EXTRACTION_FAILED`. An LLM error never blocks or changes a deterministic decision.
+- Numbers, account numbers, names in LLM-written text come from the input we passed. Never ask the LLM to "figure out" a value we have.
+- `organization_id` always comes from the server session. Never a request parameter, never a tool argument, never trusted from the client.
+- Document routing is deterministic (file type + text layer). No agent picks tools for reading documents.
 
-## Stack (MVP)
+## Stack
 
-Next.js 16 App Router + TypeScript (root `proxy.ts`, not `middleware.ts` — deprecated in Next 16) · Tailwind + shadcn/ui · Supabase (Postgres, Auth email/password, Storage; region Singapore) with RLS on every table · `@supabase/ssr` (not the deprecated auth-helpers) · Zod · PapaParse · pdf-parse · `@anthropic-ai/sdk` · Vitest · deployed on Vercel.
+Next.js 16 App Router + TypeScript (root `proxy.ts`; `middleware.ts` is the deprecated name) · Tailwind + shadcn/ui (add components on demand) · Supabase (Postgres, Auth, Storage; Singapore) with RLS on every table · `@supabase/ssr` (not auth-helpers) · Zod · PapaParse · `pdfjs-dist` or `unpdf` for PDF text **with positions** (not pdf-parse) · `@anthropic-ai/sdk` · Resend behind `lib/email/` · Vitest · Vercel. Eval: Python 3 in `eval/` (reportlab, pypdfium2, Pillow, pandas, matplotlib).
 
-LLM: one Claude Sonnet model for both extraction and explanations. Check `docs/llm-context/` or docs.claude.com for the current model string before hardcoding; put it in one constant in `lib/llm/client.ts`. Force JSON via tool-use (`tool_choice` forcing a single tool whose input schema is the Zod schema converted to JSON Schema), then validate with Zod anyway.
+Not in MVP unless asked: queues, Python services, vision in the app (vision exists only for the eval), Gmail OAuth, inbox reading, BAST, PO candidate search, partial billing, full SoD, delegation of authority, bank-change workflow, LangGraph/MCP/agent frameworks, fine-tuning.
 
-Not in MVP (do not add unless asked): Python services, queues, vision/OCR for scanned PDFs, WhatsApp/email, bank/ERP/DJP integrations, OAuth, BAST/three-way matching, full SoD, delegation of authority, vendor bank-change workflow.
+## LLM layer (product doc 6.5)
 
-## Domain vocabulary and enums
+- `lib/llm/client.ts` wraps the provider; models and the price table live in `lib/llm/config.ts`. Check `docs/llm-context/` or docs.claude.com for current model strings; never hardcode them elsewhere.
+- Structured output: force one tool via `tool_choice`, input schema from Zod; validate with Zod anyway; retry once.
+- Every prompt has a `PROMPT_VERSION` constant. Every call is logged to `llm_calls` (purpose, model, prompt_version, tokens, cost estimate, latency, ok, error_code) via `lib/llm/log-call.ts`.
 
-Source of truth is product doc section 8. Summary:
+## Domain vocabulary and enums (product doc 8)
 
 - `DocumentStatus`: `UPLOADED → EXTRACTING → EXTRACTED | NEEDS_CORRECTION | EXTRACTION_FAILED | UNSUPPORTED_FORMAT`
-- `MatchStatus`: `REJECTED | FULL_MATCH | PARTIAL_MATCH | NO_MATCH` (plus a separate boolean `anomaly_flag`)
+- `MatchStatus`: `REJECTED | FULL_MATCH | PARTIAL_MATCH | NO_MATCH` + separate boolean `anomaly_flag`. There is no `MATCHED` or `ANOMALY` status.
 - `VetoCode`: `VETO_VENDOR_NOT_FOUND | VETO_VENDOR_NOT_VERIFIED | VETO_BANK_MISMATCH | VETO_DUPLICATE_INVOICE`
 - `ReviewStatus`: `PENDING_REVIEW → APPROVED | REJECTED_BY_REVIEWER`; `APPROVED → PAID` (approver only). No backward transitions.
-- `VendorStatus`: `verified | unverified | suspended` — set by humans, never by the system
-- `Role`: `admin | ap_staff | approver` — all approvers are equal
-- `FieldConfidence`: `high | medium | low | manual`
-- Critical extraction fields: `invoice_number`, `total_amount`, `bank_account_number`, `npwp`. Any of these `low`/`null` → `NEEDS_CORRECTION`.
+- `VendorStatus`: `verified | unverified | suspended` — set by humans only
+- `Role`: `admin | ap_staff | approver`
+- `FieldConfidence`: `high | medium | low | manual` · `FieldVerification`: `verified | unverified | manual`
+- `FollowupStatus`: `DRAFT → SENT | DISCARDED`
+- `LlmPurpose`: `extract_invoice | extract_invoice_vision | explain_match | agent_followup | agent_reply | chatbot`
 
-Indonesian terms you will see: NPWP (tax ID), PO (purchase order), BAST (goods receipt — deferred), rekening (bank account), vendor terverifikasi (verified vendor).
+Critical extraction fields: `invoice_number`, `subtotal`, `total_amount`, `bank_account_number`, `npwp`. Any of them `null` or `unverified` → `NEEDS_CORRECTION`.
 
-## Matching engine contract
+Indonesian terms: NPWP (tax ID), PO, DPP (pre-tax amount = `subtotal`), PPN (VAT = `tax_amount`), PKP (VAT-registered; non-PKP invoices have no PPN), rekening (bank account), BAST (goods receipt — deferred).
 
-Order is fixed: **veto → score → classify → anomaly**. All weights and thresholds live in `lib/matching/config.ts` as named constants; nothing numeric is hardcoded elsewhere.
+## Extraction checks contract (product doc 6.3–6.4)
 
-- Veto hits → `REJECTED`, score not computed, cannot be overridden by anyone.
-- Score 0-100 per product doc 7.2. `FULL_MATCH ≥ 90`, `PARTIAL_MATCH 60-89.99`, `NO_MATCH < 60` or PO not found.
-- Anomaly: vendor with ≥ 6 PAID invoices in 24 months → flag if `total_amount > 3 × mean`; otherwise absolute threshold. Never applied to `REJECTED`.
-- String similarity: Jaro-Winkler implemented in `lib/matching/similarity.ts` with unit tests against reference values. Do not add fuse.js.
-- Normalization before any comparison: strip whitespace/punctuation, uppercase; NPWP and account numbers digits-only.
+- Every field: `{value, confidence, source_text}` from the LLM; checks add `signals {grounded, format_ok, arithmetic_ok}`, `evidence [{page, bbox}]`, `verification`.
+- `verified` iff every applicable deterministic signal passes AND `confidence ≠ low`. Manual corrections → `manual`.
+- Money parsing accepts `15.750.000,00`, `15,750,000.00`, with/without `Rp`. Dates: common Indonesian/English formats, `dd/mm` assumed.
+- Arithmetic: `subtotal + tax_amount = total_amount` (±Rp 1; non-PKP: subtotal = total); Σ line_subtotal ≈ subtotal (±0.5%); qty × unit_price = line_subtotal (±Rp 1).
+- `CHECKS_VERSION` is stored with every extraction.
 
-Write tests before implementation for anything in `lib/matching/`. Target 100% coverage there.
+## Matching engine contract (product doc 7)
 
-## Review rules (enforced server-side, mirrored in UI)
+Order is fixed: **veto → score → classify → anomaly**. Every number lives in `lib/matching/config.ts` as a named constant.
 
-- `FULL_MATCH` → approve without reason.
-- `PARTIAL_MATCH` / `NO_MATCH` / anomaly-flagged → approve **requires** a reason (this is an override); reject requires a reason.
-- `REJECTED` (veto) → no approve/override path at all; only an investigation note.
-- Mark PAID: `approver` only, from `APPROVED` only.
-- `ap_staff` cannot import CSVs or use the chatbot. Chatbot: `approver` and `admin`.
+- Vendor identification: NPWP exact, else highest Jaro-Winkler name similarity ≥ `VENDOR_NAME_MATCH_MIN` (0.95), ties = not found → `VETO_VENDOR_NOT_FOUND`.
+- Vetoes in order: not found, not verified, bank mismatch (number/bank/holder after normalization), duplicate (normalized invoice number + vendor already `APPROVED`/`PAID`). Veto → `REJECTED`, no score, never overridable. Bank has no score weight on purpose (D1).
+- Score weights: PO 25 · vendor name 15 · amount (`subtotal` vs PO total, full ≤ 0.5%, linear to 0 at 5%) 25 · line items 20 · consistency 15 (5 lines≈subtotal, 5 tax arithmetic, 5 date order). Sum = 100.
+- Classify: PO not found (missing / not in org / other vendor) → `NO_MATCH`; else `FULL_MATCH ≥ 90`, `PARTIAL_MATCH ≥ 60`, else `NO_MATCH`. No PO candidate search.
+- Anomaly: ≥ 6 PAID invoices in 24 months → flag if total > 3 × mean; else flag if total > Rp 500.000.000. Never on `REJECTED`.
+- Jaro-Winkler is hand-written in `lib/matching/similarity.ts` with reference-value tests. No fuse.js.
+- Pending duplicate (same normalized number + vendor still `PENDING_REVIEW`) → display-only warning, not a veto.
 
-Every state change and every manual field correction writes to `audit_logs` via `lib/audit.ts` with `old_value`/`new_value`/`reason`. `audit_logs` is append-only at the database level (revoked UPDATE/DELETE + trigger). Never work around that.
+Tests first for every deterministic folder; 100% coverage on `lib/matching`.
+
+## Review rules (product doc 7.5, 9; code in `lib/review/`)
+
+- Uploader of the document cannot approve/reject its match → 403 (SoD, D7). Investigation notes are allowed.
+- `FULL_MATCH`, no anomaly, total < `REVIEW_HIGH_AMOUNT` (Rp 100.000.000) → one click.
+- `FULL_MATCH`, total ≥ `REVIEW_HIGH_AMOUNT` → tick evidence for every critical field.
+- `PARTIAL_MATCH` / `NO_MATCH` → tick every flagged item (each score component below max, each unverified field) + reason.
+- `anomaly_flag` → ticks + reason ≥ `ANOMALY_REASON_MIN_CHARS` (20).
+- `REJECTED` → no approve path in UI or API; investigation note only.
+- Reject always needs a reason. Mark PAID: approver only, from `APPROVED` only.
+- Server recomputes required items with `requiredReviewItems()` and rejects (400) incomplete submissions. Every review writes `review_sessions` + `audit_logs`.
+- AI-written text (explanations, drafts) is labelled "Dibuat AI" in the UI.
+
+## Follow-up agent rules (product doc 10)
+
+- Eligible: `PARTIAL_MATCH`, `NO_MATCH`, anomaly-flagged, `REJECTED` with `VETO_BANK_MISMATCH`.
+- Recipient = `vendors.contact_email` only, re-read at send time. Never from the invoice, a reply, or LLM output. No contact → no draft.
+- Tools: `get_followup_context` (match bound server-side), `save_draft`, `propose_po_number` (suggestion, validated by code), `flag_suspicious` (display only). **No send tool. No tool that writes vendor, bank, status, or invoice data.**
+- Own loop with `MAX_AGENT_ITERATIONS` (6) in `lib/agent/config.ts`.
+- Sending = `POST /api/followups/[id]/send`, triggered by a human. `EMAIL_MODE=dry_run` by default.
+- Pasted vendor replies are untrusted data, wrapped as data in prompts. `lib/followup-checks` detects bank-change requests deterministically; flags only warn.
+- Accepting a proposed PO goes through the normal audited correction flow and re-runs matching.
 
 ## Data access rules
 
-- Every table has `organization_id` and an RLS policy scoped to the caller's org. New tables must follow this from their first migration.
-- Server code that uses the service-role client (`lib/supabase/admin.ts`) must filter by `organization_id` explicitly — RLS does not protect service-role queries.
-- Uploaded files live in Storage bucket `documents` at `{organization_id}/{document_id}.pdf` and are never deleted (audit).
-- Role checks happen in API routes from `profiles.role`, never from the client.
+- Every table has `organization_id` + RLS scoped to the caller's org, from its first migration.
+- Chatbot and agent tools use the **user-scoped** server client (RLS active). Never `lib/supabase/admin.ts` there.
+- `admin.ts` (service role) only for explicit server jobs (CSV import, history import) and must filter `organization_id` manually.
+- `audit_logs` is append-only via REVOKE + trigger (blocks service role too). Never work around it.
+- Files live in bucket `documents` at `{organization_id}/{document_id}.pdf` and are never deleted.
+- Role checks happen server-side from `profiles.role`.
+
+## Eval rules (product doc 12)
+
+- One extraction implementation: `scripts/extract-batch.ts` runs the app's `lib/llm` + `lib/extraction-checks` (no DB) and writes JSONL. Python in `eval/` only generates PDFs and analyzes JSONL; it never re-implements extraction.
+- `eval/generate.py` (fixed seed) also regenerates `fixtures/invoices/`.
+- Vision extraction is used only by the eval in MVP. In the app, scanned PDFs stay `UNSUPPORTED_FORMAT`.
+- `npm run eval:smoke` must pass after any `PROMPT_VERSION` change.
 
 ## Conventions
 
-- Language: UI labels and LLM-generated text in Indonesian; code, comments, commits, and tests in English.
-- Money: store as `numeric(18,2)`, currency `IDR` default; compare with relative tolerance from `config.ts`, never `===` on floats.
-- Dates: ISO 8601 strings at the API boundary; `date` columns in Postgres.
-- API routes return `{ ok: true, data }` or `{ ok: false, error: { code, message, details? } }` with proper HTTP status (400 validation, 401 unauthenticated, 403 role, 404, 409 invalid transition).
-- Validate every request body, every CSV row, and every LLM output with Zod.
-- shadcn components are added on demand; don't install the whole library.
-- Keep `lib/document-router`, `lib/matching`, `lib/llm`, `lib/chatbot` as separate folders — the boundary must be visible in the file tree.
+- UI labels and LLM-written text in Indonesian; code, comments, commits, tests in English.
+- Money: `numeric(18,2)`, IDR default; compare with tolerances from config, never `===` on floats.
+- Dates: ISO 8601 at the API boundary; `date` columns.
+- API responses: `{ ok: true, data }` or `{ ok: false, error: { code, message, details? } }`; 400 validation, 401, 403 role/SoD, 404, 409 invalid transition.
+- Validate every request body, CSV row, and LLM output with Zod.
+- Keep zone folders separate; the boundary must be visible in the file tree.
 
-## How to work with me (the user)
+## How to work with me
 
-- Read the referenced product doc sections before planning. Don't guess weights, column names, statuses, or role rules — they are all specified.
-- Present a plan and wait for approval before writing code in each phase.
-- Stay inside the current phase's "done" definition from `docs/dev-guide.md`. If something seems missing from the spec, ask instead of inventing it.
-- If a request would move a decision into the AI zone, or let an LLM touch a state transition, push back and cite this file.
-- Prefer small, reviewable diffs. One phase per branch.
-- Fixtures are in `fixtures/`; use them in tests and eval scripts rather than inventing sample data.`
+- Read the referenced product-doc sections before planning. Don't guess weights, columns, statuses, or role rules; they are specified. If something is missing, ask.
+- Present a plan before writing code; keep a todo list for the session and work through it part by part.
+- Run the verification for each part before moving on; commit at the end of each phase with `phase N:` in the message.
+- If a request would move a decision into the AI zone or let an LLM touch a state transition or send email, push back and cite this file.
+- Fixtures are in `fixtures/`; generate data with `eval/generate.py` instead of inventing sample data.
