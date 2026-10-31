@@ -2,7 +2,8 @@
 --
 -- HOW TO USE
 --
--- 1. Run supabase/migrations/0001_init.sql in the Supabase SQL Editor first.
+-- 1. Run supabase/migrations/0001_init.sql, then 0002_v3.sql, in the Supabase
+--    SQL Editor first.
 --    This file is also run in the SQL Editor and is safe to re-run.
 --
 -- 2. Create three users by hand: Supabase Dashboard -> Authentication ->
@@ -49,7 +50,7 @@ on conflict (id) do nothing;
 
 -- ------------------------------------------------ second organization (optional)
 --
--- For demo scenario 10 (product doc section 15): log in as another
+-- For demo scenario 10 (product doc section 18): log in as another
 -- organization and see nothing from Demo Corp. tests/rls.integration.test.ts
 -- creates and removes its own throwaway organization, so this block is only
 -- needed if you want to click through it by hand.

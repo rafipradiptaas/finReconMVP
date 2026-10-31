@@ -7,7 +7,7 @@ Regenerasi: `python3 scripts/generate-fixtures.py` (butuh reportlab, pdf2image, 
 
 | File | Isi |
 |---|---|
-| `vendors.csv` | 10 vendor. V002 & V007 → indikator **Perlu Review** (last_verified > 12 bln / kosong), V006 **unverified**, V008 **suspended** |
+| `vendors.csv` | 10 vendor. V002 & V007 → indikator **Perlu Review** (last_verified > 12 bln / kosong), V006 **unverified**, V008 **suspended**. `contact_email` memakai domain `.example` supaya tidak mungkin terkirim ke alamat asli; V010 sengaja kosong untuk jalur "kontak belum ada" |
 | `purchase_orders.csv` | 12 PO, 19 baris (beberapa multi-line). Satu baris per line item |
 | `invoice_history.csv` | 138 transaksi PAID, 8 vendor, Okt 2024–Agu 2026. Berisi **4 anomali historis** (~6,5× rata-rata: V003-004, V010-007, V005-009, V002-003) dan **2 duplikat** (H-V001-001 & H-V004-001 muncul dua kali) |
 | `invoices/*.pdf` | 10 invoice PDF, 3 tata letak berbeda |

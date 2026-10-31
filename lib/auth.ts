@@ -34,8 +34,8 @@ export async function getSessionContext(): Promise<SessionContext | null> {
 
   return {
     userId,
-    organizationId: profile.organization_id as string,
-    role: profile.role as Role,
-    fullName: (profile.full_name as string | null) ?? null,
+    organizationId: profile.organization_id,
+    role: profile.role,
+    fullName: profile.full_name,
   };
 }

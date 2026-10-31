@@ -40,6 +40,14 @@ export async function proxy(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
 
   if (!data?.claims && !isPublic) {
+    // API callers get the JSON envelope, not a login page.
+    if (request.nextUrl.pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { ok: false, error: { code: 'UNAUTHENTICATED', message: 'Silakan masuk terlebih dahulu.' } },
+        { status: 401 },
+      );
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);

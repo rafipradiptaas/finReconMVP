@@ -1,7 +1,7 @@
 /**
- * Domain enums. Source of truth: docs/product-doc-v2.md section 8.
+ * Domain enums. Source of truth: docs/product-doc.md section 8.
  * Keep the string values identical to the Postgres enums in
- * supabase/migrations/0001_init.sql.
+ * supabase/migrations/.
  */
 
 export const DOCUMENT_STATUSES = [
@@ -47,9 +47,26 @@ export type Role = (typeof ROLES)[number];
 export const FIELD_CONFIDENCES = ['high', 'medium', 'low', 'manual'] as const;
 export type FieldConfidence = (typeof FIELD_CONFIDENCES)[number];
 
-/** Extraction fields that hold a document at NEEDS_CORRECTION when low/null. */
+export const FIELD_VERIFICATIONS = ['verified', 'unverified', 'manual'] as const;
+export type FieldVerification = (typeof FIELD_VERIFICATIONS)[number];
+
+export const FOLLOWUP_STATUSES = ['DRAFT', 'SENT', 'DISCARDED'] as const;
+export type FollowupStatus = (typeof FOLLOWUP_STATUSES)[number];
+
+export const LLM_PURPOSES = [
+  'extract_invoice',
+  'extract_invoice_vision',
+  'explain_match',
+  'agent_followup',
+  'agent_reply',
+  'chatbot',
+] as const;
+export type LlmPurpose = (typeof LLM_PURPOSES)[number];
+
+/** Extraction fields that hold a document at NEEDS_CORRECTION when null or unverified. */
 export const CRITICAL_EXTRACTION_FIELDS = [
   'invoice_number',
+  'subtotal',
   'total_amount',
   'bank_account_number',
   'npwp',
@@ -76,4 +93,10 @@ export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Admin',
   ap_staff: 'Staf AP',
   approver: 'Approver',
+};
+
+export const VENDOR_STATUS_LABELS: Record<VendorStatus, string> = {
+  verified: 'Terverifikasi',
+  unverified: 'Belum terverifikasi',
+  suspended: 'Ditangguhkan',
 };
