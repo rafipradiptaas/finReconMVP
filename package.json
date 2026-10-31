@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:types": "npx supabase gen types typescript --project-id gggnegmcknqxjwcxoqdp --schema public > types/database.types.ts.tmp && mv types/database.types.ts.tmp types/database.types.ts"
+    "db:types": "npx supabase gen types typescript --project-id gggnegmcknqxjwcxoqdp --schema public > types/database.types.ts.tmp && mv types/database.types.ts.tmp types/database.types.ts",
+    "extract:batch": "tsx scripts/extract-batch.ts",
+    "eval:smoke": "tsx scripts/eval-smoke.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

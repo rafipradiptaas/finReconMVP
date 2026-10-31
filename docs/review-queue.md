@@ -2,6 +2,17 @@
 
 Written during the unattended run on branch `session-b`. Every "STOP and show me" from the Session B prompt became a section here. Nothing was pushed or merged.
 
+## HARD STOP: ANTHROPIC_API_KEY is missing
+
+The run ended here, as the run rules require. Nothing else blocked it.
+
+- `.env.local` has `ANTHROPIC_API_KEY=` with an empty value. It is not in the shell environment either, and the `ant` CLI is not installed, so there is no profile to fall back on.
+- The SDK reports: `Could not resolve authentication method. Expected one of apiKey, authToken, credentials, config, or profile to be set.`
+- `npm run extract:batch` on fixture 01 returned `EXTRACTION_FAILED / provider_error` after 9 ms. Nothing reached the API: no tokens, no charge, 0 rows in `llm_calls`.
+- I did not look for a key anywhere else on the machine.
+
+**To resume:** set the key in `.env.local`, then use the Continue prompt in `docs/session-b-report.md`.
+
 ## Run checklist
 
 - [x] Part 1 — D19, D20, D22 in the decision log (already in `20311b2`, nothing to do)
@@ -11,13 +22,13 @@ Written during the unattended run on branch `session-b`. Every "STOP and show me
 - [x] Phase 3.2 document router
 - [x] Phase 3.3 extraction checks (review section below)
 - [x] Phase 3.4 lib/llm
-- [ ] Phase 3.5 upload route
-- [ ] Phase 3.6 documents UI + correction
-- [ ] Phase 3.7 extract-batch + eval:smoke
-- [ ] Phase 4.8 matching tests (review section below)
-- [ ] Phase 4.9 matching engine
-- [ ] Phase 4.10 integration + /matches
-- [ ] Part 5 final report
+- [ ] Phase 3.5 upload route (not started)
+- [ ] Phase 3.6 documents UI + correction (not started)
+- [~] Phase 3.7 extract-batch + eval:smoke: scripts written, never run against the API
+- [ ] Phase 4.8 matching tests (not started)
+- [ ] Phase 4.9 matching engine (not started)
+- [ ] Phase 4.10 integration + /matches (not started)
+- [x] Part 5 final report (`docs/session-b-report.md`, stopped early)
 
 ## Decisions I took
 
@@ -36,6 +47,16 @@ Written during the unattended run on branch `session-b`. Every "STOP and show me
 12. **Fixture 09 is renamed** "PT Sinar Logistik Antarpulau" (D13). Fixture 10's image is drawn with Pillow and carries invented text, since the old generator is gone. Its ground truth stays all-null.
 13. **Eval set has 12 documents for now** (10 for smoke + 2). The ≥ 40 target belongs to Session D, per the dev guide's Phase 6 step 1.
 
+14. **Migration `0004_documents_bucket.sql` was added and applied.** It was not in your list, but the `documents` bucket did not exist and the upload step needs it. It creates a private bucket and an org-scoped SELECT policy on `storage.objects`. There is no write policy, in line with D21. Please review it.
+15. **`.venv/bin/python` runs the generator,** because reportlab is not in the system `python3`. The dev guide's `python3 eval/generate.py` works once the venv is active.
+16. **Your fixture PDFs were replaced** by generated ones, as the Session B prompt asks; the originals remain in git history. Ground truth is unchanged except fixture 09's name, holder and invoice number (D13) and two metadata keys on fixture 10.
+
+## Known issues to fix when work resumes
+
+- A local failure such as a missing key is logged only as `provider_error`, which hides the cause. `lib/llm/index.ts` should also print the underlying error. I hit this during the stop.
+- D13 is not proven yet. Fixture 09 was renamed to fall under 0.95, but `lib/matching/similarity.ts` does not exist, so the required sanity test is still to come.
+- The first real call may still reveal problems the offline tests cannot: the schema is checked against the documented limits, but the API has never seen it.
+
 ## Doc conflicts found (nothing changed)
 
 - D10 still says "Loop: Anthropic SDK tool use, own loop in lib/agent/". D19 refines this to `runToolLoop`; CLAUDE.md, product-doc and dev-guide already say so. The D10 line was left as written because the decision log is a record.
@@ -53,4 +74,4 @@ Written during the unattended run on branch `session-b`. Every "STOP and show me
 
 `generated-documents.test.ts` runs each generated PDF through the real router and the checks, with ground truth standing in for the LLM, so every format is exercised on real documents at no API cost.
 
-**Output:** `162 passed` at this point for `tests/extraction-checks`, `tests/llm`, `tests/document-router`, `tests/zones.test.ts`.
+**Output:** `npm test` at the end of the run: 17 files, 264 tests passed. These run only on synthetic documents, and never with real LLM output.
