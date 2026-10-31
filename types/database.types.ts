@@ -369,7 +369,7 @@ export type Database = {
           bank_name: string | null
           created_at: string
           currency: string
-          document_id: string
+          document_id: string | null
           id: string
           imported_history: boolean
           invoice_date: string | null
@@ -392,7 +392,7 @@ export type Database = {
           bank_name?: string | null
           created_at?: string
           currency?: string
-          document_id: string
+          document_id?: string | null
           id?: string
           imported_history?: boolean
           invoice_date?: string | null
@@ -415,7 +415,7 @@ export type Database = {
           bank_name?: string | null
           created_at?: string
           currency?: string
-          document_id?: string
+          document_id?: string | null
           id?: string
           imported_history?: boolean
           invoice_date?: string | null

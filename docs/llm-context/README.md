@@ -15,13 +15,13 @@ dengan `@docs/llm-context/<file>` saat mengerjakan fase yang relevan.
 | `anthropic-structured-outputs.md` | 3, 5 (`output_config.format`, D19) |
 | `anthropic-tool-use-overview.md`, `anthropic-tool-use.md` | 7, 8 (loop tool di `runToolLoop`) |
 | `anthropic-pdf-support.md` | 6 (jalur vision eval) |
-| `anthropic-models.md` | 3, 6 (nama model) |
+| `anthropic-models.md`, `anthropic-pricing.md`, `anthropic-effort.md` | 3, 6 (nama model, tabel harga, `effort`) |
 
 **Model default per 2026-10-31 (D19):** `claude-sonnet-5-5` dan `claude-haiku-5-5`.
 Taruh di `lib/llm/config.ts` (Fase 3), jangan disebar.
 
 Yang masih harus ditambahkan (bertanda ★ di Bagian 6 `docs/dev-guide.md`):
-effort, models, pricing, `pdfjs-dist` atau `unpdf`, Resend.
+`pdfjs-dist` atau `unpdf`, Resend.
 
 Perbarui dengan `curl -sSL <url>.md` — dokumen Anthropic, Supabase, dan
 Next.js semuanya menyajikan markdown mentah dengan akhiran `.md`.
