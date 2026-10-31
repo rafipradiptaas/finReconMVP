@@ -1,0 +1,34 @@
+{
+  "doc_id": "fx10",
+  "file": "fixtures/invoices/10_unsupported_scanned_image_only.pdf",
+  "template": "scan",
+  "variant": {
+    "date_format": "iso",
+    "number_format": "id",
+    "po_placement": "header",
+    "non_pkp": false,
+    "second_bank": false,
+    "multi_page": false,
+    "narrow_desc": false
+  },
+  "fields": {
+    "invoice_number": null,
+    "invoice_date": null,
+    "vendor_name": null,
+    "npwp": null,
+    "po_number": null,
+    "bank_name": null,
+    "bank_account_number": null,
+    "bank_account_holder": null,
+    "subtotal": null,
+    "tax_amount": null,
+    "total_amount": null,
+    "line_items": []
+  },
+  "expected": {
+    "document_status": "UNSUPPORTED_FORMAT",
+    "match_status": null,
+    "veto_code": null,
+    "anomaly_flag": false
+  }
+}

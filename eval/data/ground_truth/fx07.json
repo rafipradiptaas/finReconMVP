@@ -1,0 +1,41 @@
+{
+  "doc_id": "fx07",
+  "file": "fixtures/invoices/07_veto_vendor_unverified_V006.pdf",
+  "template": "faktur",
+  "variant": {
+    "date_format": "iso",
+    "number_format": "id",
+    "po_placement": "header",
+    "non_pkp": false,
+    "second_bank": false,
+    "multi_page": false,
+    "narrow_desc": false
+  },
+  "fields": {
+    "invoice_number": "GKI/INV/2026/045",
+    "invoice_date": "2026-08-05",
+    "vendor_name": "PT Global Kimia Indo",
+    "npwp": "066789123456000",
+    "po_number": "PO-2026-009",
+    "bank_name": "Mandiri",
+    "bank_account_number": "1450098765432",
+    "bank_account_holder": "PT GLOBAL KIMIA INDO",
+    "subtotal": 14400000,
+    "tax_amount": 1584000,
+    "total_amount": 15984000,
+    "line_items": [
+      {
+        "description": "Bahan kimia pembersih industri (drum)",
+        "quantity": 6,
+        "unit_price": 2400000,
+        "subtotal": 14400000
+      }
+    ]
+  },
+  "expected": {
+    "document_status": "EXTRACTED",
+    "match_status": "REJECTED",
+    "veto_code": "VETO_VENDOR_NOT_VERIFIED",
+    "anomaly_flag": false
+  }
+}

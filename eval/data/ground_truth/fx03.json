@@ -1,0 +1,47 @@
+{
+  "doc_id": "fx03",
+  "file": "fixtures/invoices/03_veto_bank_mismatch_V004.pdf",
+  "template": "banner",
+  "variant": {
+    "date_format": "iso",
+    "number_format": "id",
+    "po_placement": "header",
+    "non_pkp": false,
+    "second_bank": false,
+    "multi_page": false,
+    "narrow_desc": false
+  },
+  "fields": {
+    "invoice_number": "INV-NKS-2026-088",
+    "invoice_date": "2026-07-21",
+    "vendor_name": "PT Nusantara Komputer Sejahtera",
+    "npwp": "044567891234000",
+    "po_number": "PO-2026-004",
+    "bank_name": "BRI",
+    "bank_account_number": "009901987654321",
+    "bank_account_holder": "PT NUSANTARA KOMPUTER SEJAHTERA",
+    "subtotal": 71250000,
+    "tax_amount": 7837500,
+    "total_amount": 79087500,
+    "line_items": [
+      {
+        "description": "Laptop 14 inch i5/16GB/512GB",
+        "quantity": 5,
+        "unit_price": 12500000,
+        "subtotal": 62500000
+      },
+      {
+        "description": "Docking station USB-C",
+        "quantity": 5,
+        "unit_price": 1750000,
+        "subtotal": 8750000
+      }
+    ]
+  },
+  "expected": {
+    "document_status": "EXTRACTED",
+    "match_status": "REJECTED",
+    "veto_code": "VETO_BANK_MISMATCH",
+    "anomaly_flag": false
+  }
+}

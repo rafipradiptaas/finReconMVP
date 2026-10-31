@@ -1,0 +1,48 @@
+{
+  "doc_id": "fx05",
+  "file": "fixtures/invoices/05_full_match_vendor_needs_review_V002.pdf",
+  "template": "banner",
+  "variant": {
+    "date_format": "iso",
+    "number_format": "id",
+    "po_placement": "header",
+    "non_pkp": true,
+    "second_bank": false,
+    "multi_page": false,
+    "narrow_desc": false
+  },
+  "fields": {
+    "invoice_number": "INV-MJT-2026-11",
+    "invoice_date": "2026-07-14",
+    "vendor_name": "CV Maju Jaya Teknik",
+    "npwp": "022345678912000",
+    "po_number": "PO-2026-002",
+    "bank_name": "Mandiri",
+    "bank_account_number": "1370012345678",
+    "bank_account_holder": "CV MAJU JAYA TEKNIK",
+    "subtotal": 3900000,
+    "tax_amount": 0,
+    "total_amount": 3900000,
+    "line_items": [
+      {
+        "description": "Servis AC split 2 PK",
+        "quantity": 8,
+        "unit_price": 350000,
+        "subtotal": 2800000
+      },
+      {
+        "description": "Freon R32 (kg)",
+        "quantity": 4,
+        "unit_price": 275000,
+        "subtotal": 1100000
+      }
+    ]
+  },
+  "expected": {
+    "document_status": "EXTRACTED",
+    "match_status": "FULL_MATCH",
+    "veto_code": null,
+    "anomaly_flag": false,
+    "vendor_indicator": "Perlu Review"
+  }
+}

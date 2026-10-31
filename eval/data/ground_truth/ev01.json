@@ -1,0 +1,41 @@
+{
+  "doc_id": "ev01",
+  "file": "eval/data/pdfs/ev01.pdf",
+  "template": "classic",
+  "variant": {
+    "date_format": "en_long",
+    "number_format": "en",
+    "po_placement": "header",
+    "non_pkp": false,
+    "second_bank": false,
+    "multi_page": false,
+    "narrow_desc": false
+  },
+  "fields": {
+    "invoice_number": "SLN/2026/0831",
+    "invoice_date": "2026-08-31",
+    "vendor_name": "PT Sinar Logistik Nusantara",
+    "npwp": "011234567891000",
+    "po_number": "PO-2026-010",
+    "bank_name": "BCA",
+    "bank_account_number": "1234567890",
+    "bank_account_holder": "PT SINAR LOGISTIK NUSANTARA",
+    "subtotal": 19200000,
+    "tax_amount": 2112000,
+    "total_amount": 21312000,
+    "line_items": [
+      {
+        "description": "Jasa pengiriman Jakarta-Surabaya (trip)",
+        "quantity": 6,
+        "unit_price": 3200000,
+        "subtotal": 19200000
+      }
+    ]
+  },
+  "expected": {
+    "document_status": "EXTRACTED",
+    "match_status": null,
+    "veto_code": null,
+    "anomaly_flag": false
+  }
+}

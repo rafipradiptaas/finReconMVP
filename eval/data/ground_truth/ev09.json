@@ -1,0 +1,41 @@
+{
+  "doc_id": "ev09",
+  "file": "eval/data/pdfs/ev09.pdf",
+  "template": "ledger",
+  "variant": {
+    "date_format": "en_long",
+    "number_format": "en_norp",
+    "po_placement": "header",
+    "non_pkp": false,
+    "second_bank": true,
+    "multi_page": false,
+    "narrow_desc": false
+  },
+  "fields": {
+    "invoice_number": "DMK-2026-1001",
+    "invoice_date": "2026-10-01",
+    "vendor_name": "PT Digital Media Kreatif",
+    "npwp": "099123456789000",
+    "po_number": "PO-2026-007",
+    "bank_name": "Mandiri",
+    "bank_account_number": "1560011223344",
+    "bank_account_holder": "PT DIGITAL MEDIA KREATIF",
+    "subtotal": 120000000,
+    "tax_amount": 13200000,
+    "total_amount": 133200000,
+    "line_items": [
+      {
+        "description": "Produksi video profil perusahaan",
+        "quantity": 1,
+        "unit_price": 120000000,
+        "subtotal": 120000000
+      }
+    ]
+  },
+  "expected": {
+    "document_status": "EXTRACTED",
+    "match_status": null,
+    "veto_code": null,
+    "anomaly_flag": false
+  }
+}
