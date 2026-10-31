@@ -3,7 +3,7 @@
 **Lapisan kontrol sebelum pembayaran untuk modul Accounts Payable**
 Disusun untuk Tim FinRecon AI · 31 Oktober 2026 · Menggantikan Versi 2 (September 2026)
 
-Sumber kebenaran keputusan: `docs/decisions/2026-10-31-v3.md` (D1–D18, D21). Kalau dokumen ini dan decision log berbeda, decision log yang benar dan dokumen ini wajib diperbaiki.
+Sumber kebenaran keputusan: `docs/decisions/2026-10-31-v3.md` (D1–D22). Kalau dokumen ini dan decision log berbeda, decision log yang benar dan dokumen ini wajib diperbaiki.
 
 ---
 
@@ -29,7 +29,10 @@ Sumber kebenaran keputusan: `docs/decisions/2026-10-31-v3.md` (D1–D18, D21). K
 | D16 | Demo | Lima skenario demo baru. |
 | D17 | Posisi | "Control layer"; daftar ide yang ditolak dicatat. |
 | D18 | Edge case | Vendor tak dikenal = veto; tanpa pencarian kandidat PO; cek duplikat hanya ke APPROVED/PAID (+ peringatan); folder `lib/review/` dan `lib/followup-checks/`. |
+| D19 | Provider LLM | Kode aplikasi hanya memanggil `generateStructured()` dan `runToolLoop()`; SDK hanya di `lib/llm/providers/`. Structured outputs menggantikan `tool_choice` paksa. Model default Sonnet 5.5 dan Haiku 5.5. |
+| D20 | Prioritas | Urutan kerja menuju MVP 7 Nov 2026. Cakupan tetap; hanya urutan dan kedalaman yang berubah. |
 | D21 | Hak tulis | `anon`/`authenticated` hanya baca. Semua tulis lewat API route server. User tidak pernah dihapus, hanya dinonaktifkan. |
+| D22 | Tindak lanjut Sesi A | PAID hanya `approver`; verifikasi vendor memperbarui `last_verified_at`; import ulang PO yang sudah dipakai invoice ditolak; `document_id` boleh kosong hanya untuk histori impor; halaman admin user di Fase 9. |
 
 ---
 
@@ -119,7 +122,7 @@ AI/LLM **hanya** untuk tugas interpretatif. Semua keputusan finansial dijalankan
 
 | Peran | Boleh | Tidak boleh |
 |---|---|---|
-| `admin` | Semua yang `approver` boleh + kelola user, import CSV vendor/PO/histori | — |
+| `admin` | Semua yang `approver` boleh **kecuali menandai `PAID`**, + kelola user, import CSV vendor/PO/histori | Menandai `PAID` |
 | `ap_staff` | Upload invoice, koreksi field, review (approve/reject non-veto), ubah status vendor, buat & kirim follow-up, paste balasan vendor | Menandai PAID, chatbot, import CSV |
 | `approver` | Semua yang `ap_staff` boleh + menandai `PAID` + chatbot | Import CSV, kelola user |
 
@@ -127,7 +130,7 @@ AI/LLM **hanya** untuk tugas interpretatif. Semua keputusan finansial dijalankan
 - Status vendor `verified` ditetapkan **manusia** (`admin`, `ap_staff`, atau `approver`, sesuai tabel di atas; D21). Sistem hanya memberi indikator (Bagian 5.3).
 - **SoD di MVP (D7):**
   - Pengunggah dokumen (`documents.uploaded_by`) **tidak boleh** mencatat keputusan review (approve/reject) pada match dokumen itu. Server mengembalikan 403. Catatan investigasi tetap boleh.
-  - Menandai `PAID` hanya `approver`.
+  - Menandai `PAID` hanya `approver`; `admin` tidak boleh (D22).
   - SoD penuh (pembuat vendor ≠ pembayar, dll.) ditunda.
 - Konsekuensi demo: butuh minimal dua user per organisasi (ap_staff upload, approver memutuskan).
 
@@ -209,6 +212,7 @@ Satu baris per **line item**; baris dengan `po_number` sama digabung jadi satu P
 
 - `total_amount` PO dihitung sistem dari Σ(quantity × unit_price), tidak diimpor.
 - **Harga PO adalah harga sebelum pajak (DPP).** Karena itu nominal invoice yang dibandingkan adalah `subtotal`, bukan `total_amount` (D2).
+- **Import ulang (D22):** PO yang belum dipakai invoice di-upsert, dan baris yang tidak ada lagi di file dihapus. Kalau ada `po_number` di file yang sudah dirujuk invoice, **seluruh file ditolak** dengan error per baris.
 - **Asumsi MVP (D3):** satu invoice menagih satu PO secara penuh. Tagihan termin/parsial akan gagal di komponen nominal dan jatuh ke review manusia. Sisa saldo PO = roadmap.
 
 ### 5.3 Indikator Kesiapan Vendor (ditampilkan, bukan diputuskan sistem)
@@ -218,6 +222,8 @@ Satu baris per **line item**; baris dengan `po_number` sama digabung jadi satu P
 | **Aman** | `status = verified`, field wajib lengkap, `last_verified_at` ≤ 12 bulan |
 | **Perlu Review** | `status = verified` tapi `last_verified_at` > 12 bulan atau kosong (BR-12) |
 | **Belum Siap** | `status ≠ verified` atau ada field bank/NPWP kosong |
+
+Mengubah status vendor menjadi `verified` otomatis mengisi `last_verified_at` dengan waktu server dan tercatat di audit (D22).
 
 `contact_email` kosong tidak memengaruhi indikator, tapi halaman vendor menampilkan penanda "kontak belum ada" karena follow-up tidak bisa dibuat tanpanya.
 
@@ -286,8 +292,11 @@ Fungsi murni, tanpa I/O, tanpa import dari zona AI. Konstanta `CHECKS_VERSION` d
 
 ### 6.5 Lapisan LLM (D9)
 
-- `lib/llm/client.ts` membungkus provider. Model dan provider diatur di `lib/llm/config.ts`; mengganti model tidak menyentuh pemanggil.
-- Output terstruktur via tool-use yang dipaksa (`tool_choice` ke satu tool, mis. `record_invoice`), lalu tetap divalidasi Zod; retry 1× bila invalid.
+- **Antarmuka (D19):** kode aplikasi hanya memanggil `generateStructured({purpose, system, input, images?, schema})` dan `runToolLoop({purpose, system, messages, tools, maxIterations})` dari `lib/llm`. Pesan dan tool memakai format internal.
+- **Adapter:** `lib/llm/providers/anthropic.ts` menerjemahkan format internal dan menjadi satu-satunya file yang meng-import `@anthropic-ai/sdk`. Adapter kompatibel OpenAI (OpenAI, DeepSeek, Qwen, model open-weight self-hosted) = roadmap, dan tidak boleh menyentuh pemanggil.
+- **Model default** (`lib/llm/config.ts`, per tujuan, diverifikasi ke halaman model resmi 31 Okt 2026): ekstraksi, agent, dan chatbot `claude-sonnet-5-5`; narasi match `claude-haiku-5-5`. `effort` bisa diatur per tujuan.
+- **Output terstruktur:** Claude structured outputs (`output_config.format` dengan JSON schema yang dibangkitkan dari Zod). JSON schema tidak mendukung batas numerik/panjang, jadi Zod tetap memvalidasi setiap hasil; retry 1× bila invalid.
+- **Ganti provider:** cukup satu file adapter dan perubahan config, tapi wajib eval penuh + red-team agent sebelum dipakai. Residensi data (lokasi provider vs self-hosting) diputuskan per klien (D15).
 - Setiap prompt punya konstanta `PROMPT_VERSION`.
 - Setiap panggilan LLM dicatat di `llm_calls` (Bagian 14): purpose, model, prompt_version, token, estimasi biaya (tabel harga di config, dengan komentar "verifikasi ke halaman pricing resmi"), latensi, ok, error_code.
 - Aplikasi memakai satu model di MVP. Routing antar-model diputuskan dari hasil eval.
@@ -464,7 +473,7 @@ Selalu `vendors.contact_email` dari master data. **Tidak pernah** diambil dari i
 | `flag_suspicious(reason)` | Tampilan saja | Hanya mode balasan. Menambah peringatan; tidak mengubah data |
 
 - **Tidak ada tool kirim.** Tidak ada tool yang mengubah data vendor/rekening atau status apa pun.
-- Loop sendiri dengan Anthropic SDK tool use; `MAX_AGENT_ITERATIONS` (6) di `lib/agent/config.ts`; berhenti juga bila `save_draft` sudah dipanggil (mode draft).
+- Loop dibangun di atas `runToolLoop()` dari `lib/llm`; `MAX_AGENT_ITERATIONS` (6) di `lib/agent/config.ts`; berhenti juga bila `save_draft` sudah dipanggil (mode draft).
 - Baca memakai client user (RLS aktif), `organization_id` dari session (D8). Tulis (`save_draft`, catatan balasan) lewat fungsi server yang mengambil `organization_id` dari session, bukan dari LLM (D21).
 - Semua panggilan dicatat di `llm_calls` (`agent_followup` / `agent_reply`).
 
@@ -488,7 +497,7 @@ Selalu `vendors.contact_email` dari master data. **Tidak pernah** diambil dari i
 ## 11. Chatbot Q&A (Zona AI, Read-Only, `lib/chatbot/`)
 
 - Akses: `approver` dan `admin`. Bahasa Indonesia.
-- Claude API tool use langsung (bukan MCP). Tool = query Supabase **dengan client user (RLS aktif)**; `organization_id` dari session, bukan parameter tool (D8).
+- Loop dibangun di atas `runToolLoop()` dari `lib/llm` (bukan MCP). Tool = query Supabase **dengan client user (RLS aktif)**; `organization_id` dari session, bukan parameter tool (D8).
 - Maksimal 5 panggilan tool per pesan. Di luar cakupan → "Saya belum bisa menjawab pertanyaan itu."
 
 | Tool | Deskripsi |
@@ -548,7 +557,7 @@ Kalimat headline: *"X% field kritis auto-verified dengan akurasi Y%."* Hasilnya 
 
 ### 12.5 Eksperimen
 
-- **Perbandingan model:** 2–3 model pada data yang sama.
+- **Perbandingan model:** `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5`, ditambah `claude-sonnet-5-5` dengan `effort` lebih rendah, pada data yang sama.
 - **Routing:** model murah dulu; eskalasi ke model kuat bila ada field kritis `unverified`. Bandingkan biaya & akurasi dengan model kuat saja. Validasi tidak pernah oleh model yang menilai output-nya sendiri.
 
 ### 12.6 Feedback loop & regresi
@@ -597,7 +606,7 @@ Semua tabel punya `organization_id` + RLS: `organization_id = (select organizati
 | `purchase_order_lines` | `id, organization_id, po_id, line_no, item_description, quantity, unit_price` |
 | `documents` | `id, organization_id, storage_path, original_filename, mime_type, status, status_message?, uploaded_by, created_at` |
 | `extractions` | `id, organization_id, document_id, raw_json, fields (jsonb: per field {value, confidence, source_text, evidence[], signals{grounded, format_ok, arithmetic_ok}, verification}), text_items (jsonb: hasil router), model, prompt_version, checks_version, created_at` |
-| `invoices` | `id, organization_id, document_id, vendor_id?, po_id?, invoice_number, invoice_number_normalized, invoice_date, subtotal, tax_amount?, total_amount, bank_name, bank_account_number, bank_account_holder, npwp, vendor_name, po_number?, line_items (jsonb), imported_history (bool)` — nilai **setelah** koreksi; inilah input matching |
+| `invoices` | `id, organization_id, document_id? (kosong hanya untuk histori impor), vendor_id?, po_id?, invoice_number, invoice_number_normalized, invoice_date, subtotal, tax_amount?, total_amount, bank_name, bank_account_number, bank_account_holder, npwp, vendor_name, po_number?, line_items (jsonb), imported_history (bool)` — nilai **setelah** koreksi; inilah input matching |
 | `matches` | `id, organization_id, invoice_id, status, veto_code?, score?, score_breakdown (jsonb), anomaly_flag, anomaly_reason?, explanation?, review_status, reviewed_by?, reviewed_at?, review_reason?, paid_marked_by?, paid_at?, created_at` |
 | `investigation_notes` | `id, organization_id, match_id, author_id, note, created_at` |
 | `review_sessions` | `id, organization_id, match_id, reviewer_id, opened_at, decided_at?, decision?, items_ticked (jsonb), reason?, fields_corrected_count` |
@@ -606,7 +615,7 @@ Semua tabel punya `organization_id` + RLS: `organization_id = (select organizati
 | `llm_calls` | `id, organization_id, purpose, model, prompt_version, input_tokens, output_tokens, cost_estimate_usd, latency_ms, ok, error_code?, entity_type?, entity_id?, created_at` |
 | `audit_logs` | lihat Bagian 13 |
 
-Migration baru untuk v3: `supabase/migrations/0002_v3.sql` (kolom & tabel baru, enum baru, RLS, index `invoices(organization_id, vendor_id, invoice_number_normalized)`).
+Migration v3: `supabase/migrations/0002_v3.sql` (kolom & tabel baru, enum baru, RLS, index `invoices(organization_id, vendor_id, invoice_number_normalized)`) dan `0003_d22.sql` (`invoices.document_id` nullable dengan CHECK `document_id IS NOT NULL OR imported_history = true`; EXECUTE `current_org_id()` dicabut dari `anon`).
 
 ---
 
@@ -622,9 +631,9 @@ Migration baru untuk v3: `supabase/migrations/0002_v3.sql` (kolom & tabel baru, 
 | Database / Auth / Storage | Supabase, region Singapore | RLS di semua tabel; bucket `documents` |
 | Teks PDF + posisi | `pdfjs-dist` atau `unpdf` | Menggantikan `pdf-parse` |
 | CSV | PapaParse | |
-| LLM | Claude API via `@anthropic-ai/sdk`, dibungkus `lib/llm/client.ts` | Tool-use dipaksa + Zod; satu model di app |
+| LLM | Claude API (Sonnet 5.5 / Haiku 5.5) via `@anthropic-ai/sdk` hanya di `lib/llm/providers/` | Antarmuka `generateStructured`/`runToolLoop`; structured outputs + Zod |
 | Similarity | Jaro-Winkler sendiri (`lib/matching/similarity.ts`) | Tanpa fuse.js |
-| Agent & chatbot | Anthropic SDK tool use, loop sendiri | Tanpa LangGraph/MCP |
+| Agent & chatbot | `runToolLoop()` dari `lib/llm` | Tanpa LangGraph/MCP |
 | Email | Resend di balik `lib/email/` | `EMAIL_MODE=dry_run` default |
 | Validasi | Zod | Request, CSV, output LLM |
 | Testing | Vitest | Wajib untuk folder deterministik |
@@ -672,7 +681,7 @@ finrecon-ai/
 │   ├── eval-chatbot.ts
 │   └── export-corrections.ts
 ├── supabase/
-│   ├── migrations/                  # 0001_init.sql, 0002_v3.sql
+│   ├── migrations/                  # 0001_init.sql, 0002_v3.sql, 0003_d22.sql
 │   └── seed.sql
 ├── app/
 │   ├── (auth)/login, (auth)/register
@@ -697,9 +706,10 @@ finrecon-ai/
 │   ├── review/                      # DETERMINISTIK: config, required-items, validate-decision
 │   ├── followup-checks/             # DETERMINISTIK: detect-bank-change
 │   ├── email/                       # DETERMINISTIK transport: index (interface), resend.ts, dry-run.ts
-│   ├── llm/                         # AI: config, client, log-call, schemas/, extract-invoice, extract-invoice-vision, explain-match
+│   ├── llm/                         # AI: config, index (generateStructured, runToolLoop), providers/anthropic.ts, log-call, schemas/, extract-invoice, extract-invoice-vision, explain-match
 │   ├── agent/                       # AI: config, tools, loop, prompts
 │   ├── chatbot/                     # AI: tools, tool-schemas, loop
+│   ├── server/                      # write-context.ts: satu-satunya jalur tulis (D21)
 │   ├── audit.ts
 │   └── csv/
 ├── types/ (database.types.ts, domain.ts)
@@ -713,6 +723,8 @@ finrecon-ai/
 
 Eksekusi lewat 4 sesi Claude Code besar (lihat `docs/dev-guide.md`); setiap fase tetap punya verifikasi & commit sendiri.
 
+**Prioritas menuju MVP 7 Nov 2026 (D20):** Sesi A → Sesi B → Sesi C Fase 5 (checkpoint demo) → Sesi D Fase 6 level Wajib → Sesi C Fase 7–8 → Sesi D Fase 9 + eval level Porto. Kalau waktu habis, potong dari akhir daftar ini, jangan pernah dari tes atau titik STOP Fase 3–5.
+
 | Fase | Isi | Sesi | Selesai bila |
 |---|---|---|---|
 | 0 | Persiapan | — | ✅ Selesai |
@@ -725,7 +737,7 @@ Eksekusi lewat 4 sesi Claude Code besar (lihat `docs/dev-guide.md`); setiap fase
 | 6 | Eval harness (D11) | D | **Checkpoint: siap portofolio** |
 | 7 | Agent follow-up (D10) | C | Tes keamanan agent hijau |
 | 8 | Anomali baseline + chatbot (D8, D12) | C | Grounding & isolasi org terbukti |
-| 9 | Polish & demo | D | 15 skenario Bagian 18 lancar |
+| 9 | Polish & demo, halaman admin untuk nonaktifkan user & ubah peran (D22) | D | 15 skenario Bagian 18 lancar |
 
 ---
 

@@ -17,7 +17,7 @@ export const PATCH = withWriteContext(
 
     const { data: vendor, error: readError } = await ctx.db
       .from('vendors')
-      .select('status')
+      .select('status, last_verified_at')
       .eq('id', id)
       .eq('organization_id', ctx.organizationId)
       .maybeSingle();
@@ -26,9 +26,15 @@ export const PATCH = withWriteContext(
 
     if (vendor.status === parsed.data.status) return ok({ status: vendor.status });
 
+    // Verifying is a fresh check, so it restarts the 12-month readiness window.
+    const last_verified_at =
+      parsed.data.status === 'verified'
+        ? new Date().toISOString().slice(0, 10)
+        : vendor.last_verified_at;
+
     const { error: writeError } = await ctx.db
       .from('vendors')
-      .update({ status: parsed.data.status })
+      .update({ status: parsed.data.status, last_verified_at })
       .eq('id', id)
       .eq('organization_id', ctx.organizationId);
     if (writeError) throw writeError;
@@ -38,8 +44,8 @@ export const PATCH = withWriteContext(
         entityType: 'vendor',
         entityId: id,
         action: 'vendor_status_changed',
-        oldValue: { status: vendor.status },
-        newValue: { status: parsed.data.status },
+        oldValue: { status: vendor.status, last_verified_at: vendor.last_verified_at },
+        newValue: { status: parsed.data.status, last_verified_at },
       },
       ctx,
     );

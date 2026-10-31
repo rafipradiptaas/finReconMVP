@@ -79,6 +79,22 @@ describe('parsePurchaseOrdersCsv', () => {
     ).toBe(true);
   });
 
+  it('rejects every row of a PO already referenced by an invoice', () => {
+    const result = parsePurchaseOrdersCsv(
+      csv('PO1,V1,2026-01-01,1,A,1,1,IDR', 'PO2,V1,2026-01-01,1,B,1,1,IDR', 'PO1,V1,2026-01-01,2,C,1,1,IDR'),
+      KNOWN,
+      new Set(['PO1']),
+    );
+    if (result.ok) throw new Error('expected the file to be rejected');
+    expect(result.errors).toEqual(
+      [2, 4].map((row) => ({
+        row,
+        column: 'po_number',
+        message: 'PO sudah dipakai invoice, tidak bisa diimpor ulang',
+      })),
+    );
+  });
+
   it('rejects lines of one PO that disagree on vendor, date or currency', () => {
     const errors = errorsOf(csv('PO1,V1,2026-01-01,1,A,1,1,IDR', 'PO1,V2,2026-01-02,2,B,1,1,USD'));
     expect(errors.map((error) => error.column)).toEqual(['vendor_code', 'po_date', 'currency']);

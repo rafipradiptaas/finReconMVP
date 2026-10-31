@@ -44,7 +44,8 @@ menjalankannya ulang.
 
 1. **SQL Editor** → jalankan isi
    [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), lalu
-   [`0002_v3.sql`](supabase/migrations/0002_v3.sql). Berurutan, masing-masing sekali.
+   [`0002_v3.sql`](supabase/migrations/0002_v3.sql) dan
+   [`0003_d22.sql`](supabase/migrations/0003_d22.sql). Berurutan, masing-masing sekali.
 2. **Authentication → Users → Add user** ×3 dengan "Auto Confirm User"
    aktif: `admin@democorp.test`, `ap_staff@democorp.test`,
    `approver@democorp.test`. Email tidak perlu asli; password minimal 6
@@ -73,11 +74,11 @@ npm run lint
 npm run build
 ```
 
-`tests/rls.integration.test.ts` membuat dua organisasi sementara di project
-Supabase asli, membuktikan isolasi antar-organisasi dan bahwa anon key tidak
-bisa menulis ke tabel mana pun, lalu membersihkannya. Satu organisasi
-`RLS Audit Fixture (do not delete)` sengaja tertinggal karena baris audit tidak
-bisa dihapus. Test ini otomatis di-skip kalau env belum terisi.
+`tests/rls.integration.test.ts` memakai project Supabase asli untuk membuktikan
+isolasi antar-organisasi dan bahwa anon key tidak bisa menulis ke tabel mana pun.
+Tes yang menulis data memakai organisasi `RLS Audit Fixture (do not delete)`,
+tidak pernah Demo Corp. Organisasi itu sengaja permanen karena baris audit tidak
+bisa dihapus. Tes integrasi otomatis di-skip kalau env belum terisi.
 
 Cek manual append-only `audit_logs` di SQL Editor (harus gagal keduanya):
 

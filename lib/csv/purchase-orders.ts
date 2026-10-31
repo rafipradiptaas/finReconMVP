@@ -15,9 +15,12 @@ const number = (column: string) =>
   z.string().min(1, `${column} wajib diisi`).transform(Number);
 
 // Product doc 5.2. One row per line item.
-function poRow(knownVendorCodes: ReadonlySet<string>) {
+function poRow(knownVendorCodes: ReadonlySet<string>, invoicedPoNumbers: ReadonlySet<string>) {
   return z.object({
-    po_number: z.string().min(1, 'po_number wajib diisi'),
+    po_number: z
+      .string()
+      .min(1, 'po_number wajib diisi')
+      .refine((po) => !invoicedPoNumbers.has(po), 'PO sudah dipakai invoice, tidak bisa diimpor ulang'),
     vendor_code: z
       .string()
       .refine((code) => knownVendorCodes.has(code), 'vendor_code tidak ada di master vendor'),
@@ -68,8 +71,12 @@ function checkAcrossRows(rows: NumberedRow<PoRow>[]): CsvError[] {
   return errors;
 }
 
-export function parsePurchaseOrdersCsv(text: string, knownVendorCodes: ReadonlySet<string>) {
-  return parseCsv(text, COLUMNS, poRow(knownVendorCodes), checkAcrossRows);
+export function parsePurchaseOrdersCsv(
+  text: string,
+  knownVendorCodes: ReadonlySet<string>,
+  invoicedPoNumbers: ReadonlySet<string> = new Set(),
+) {
+  return parseCsv(text, COLUMNS, poRow(knownVendorCodes, invoicedPoNumbers), checkAcrossRows);
 }
 
 export function groupPurchaseOrders(rows: PoRow[]): GroupedPo[] {

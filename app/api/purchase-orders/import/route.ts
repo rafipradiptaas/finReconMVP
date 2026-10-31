@@ -14,7 +14,20 @@ export const POST = withWriteContext(['admin'], async (ctx, request: Request) =>
   if (vendorError) throw vendorError;
   const vendorIds = new Map(vendors.map((vendor) => [vendor.vendor_code, vendor.id]));
 
-  const parsed = parsePurchaseOrdersCsv(text, new Set(vendorIds.keys()));
+  // An invoice points at a PO by id once matched, and by its printed number
+  // before that. Either way the PO can no longer change under it (D22).
+  const { data: invoices, error: invoiceError } = await ctx.db
+    .from('invoices')
+    .select('po_number, purchase_orders(po_number)')
+    .eq('organization_id', ctx.organizationId);
+  if (invoiceError) throw invoiceError;
+  const invoicedPoNumbers = new Set(
+    invoices
+      .flatMap((invoice) => [invoice.po_number, invoice.purchase_orders?.po_number])
+      .filter((poNumber): poNumber is string => Boolean(poNumber)),
+  );
+
+  const parsed = parsePurchaseOrdersCsv(text, new Set(vendorIds.keys()), invoicedPoNumbers);
   if (!parsed.ok) {
     return fail(400, 'CSV_INVALID', 'File ditolak. Tidak ada data yang disimpan.', {
       errors: parsed.errors,

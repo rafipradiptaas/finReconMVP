@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { fixtureOrgId } from './helpers/fixture-org';
 
 /**
  * Proves the permission model against the real database (decision D21): no
@@ -13,10 +14,6 @@ const configured = Boolean(url && anonKey && serviceKey);
 
 const INSUFFICIENT_PRIVILEGE = '42501';
 const NOWHERE = '00000000-0000-0000-0000-000000000000';
-
-// Audit rows can never be deleted, and neither can an organization that has
-// them, so audit_logs reads are proven against one permanent organization.
-const AUDIT_FIXTURE_ORG = 'RLS Audit Fixture (do not delete)';
 
 const ORG_TABLES = [
   'profiles',
@@ -47,7 +44,6 @@ describe.skipIf(!configured)('database permissions', () => {
   let asUserB: SupabaseClient;
   let orgA: string;
   let orgB: string;
-  let auditOrg: string;
   let userAId: string;
   let userBId: string;
   let vendorA: string;
@@ -55,9 +51,14 @@ describe.skipIf(!configured)('database permissions', () => {
   let documentA: string;
   let matchA: string;
 
+  // The fixture organization is shared with other test files, so cleanup goes
+  // by the ids this run created.
+  const created: Record<string, string[]> = {};
+
   async function insertOne(table: string, row: Record<string, unknown>): Promise<string> {
     const { data, error } = await admin.from(table).insert(row).select('id').single();
     if (error) throw new Error(`seed ${table}: ${error.message}`);
+    (created[table] ??= []).push(data.id);
     return data.id;
   }
 
@@ -81,7 +82,7 @@ describe.skipIf(!configured)('database permissions', () => {
   beforeAll(async () => {
     admin = createClient(url!, serviceKey!, options);
 
-    orgA = await insertOne('organizations', { name: `RLS Org A ${stamp}` });
+    orgA = await fixtureOrgId(admin);
     orgB = await insertOne('organizations', { name: `RLS Org B ${stamp}` });
     userAId = await createMember(userA, orgA);
     userBId = await createMember(userB, orgB);
@@ -147,19 +148,12 @@ describe.skipIf(!configured)('database permissions', () => {
       ok: true,
     });
 
-    const { data: existing, error: lookupError } = await admin
-      .from('organizations')
-      .select('id')
-      .eq('name', AUDIT_FIXTURE_ORG)
-      .maybeSingle();
-    if (lookupError) throw lookupError;
-    auditOrg = existing?.id ?? (await insertOne('organizations', { name: AUDIT_FIXTURE_ORG }));
     const { count } = await admin
       .from('audit_logs')
       .select('id', { count: 'exact', head: true })
-      .eq('organization_id', auditOrg);
+      .eq('organization_id', orgA);
     if (!count) {
-      await insertOne('audit_logs', { organization_id: auditOrg, entity_type: 'test', action: 'fixture' });
+      await insertOne('audit_logs', { organization_id: orgA, entity_type: 'test', action: 'fixture' });
     }
 
     asUserA = await signIn(userA);
@@ -171,31 +165,25 @@ describe.skipIf(!configured)('database permissions', () => {
   // followups, matches, invoices and extractions cascade from documents.
   afterAll(async () => {
     if (!admin) return;
-    if (orgA) {
-      await admin.from('llm_calls').delete().eq('organization_id', orgA);
-      await admin.from('documents').delete().eq('organization_id', orgA);
-      await admin.from('purchase_orders').delete().eq('organization_id', orgA);
-      await admin.from('vendors').delete().eq('organization_id', orgA);
+    for (const table of ['llm_calls', 'documents', 'purchase_orders', 'vendors']) {
+      if (created[table]) await admin.from(table).delete().in('id', created[table]);
     }
     for (const id of [userAId, userBId].filter(Boolean)) {
       await admin.from('profiles').delete().eq('id', id);
       await admin.auth.admin.deleteUser(id);
     }
-    const orgs = [orgA, orgB].filter(Boolean);
-    if (orgs.length) await admin.from('organizations').delete().in('id', orgs);
+    if (orgB) await admin.from('organizations').delete().eq('id', orgB);
   });
 
   describe('organization isolation', () => {
     it.each(ORG_TABLES)('org B cannot read org A rows of %s', async (table) => {
-      const target = table === 'audit_logs' ? auditOrg : orgA;
-
       const { count } = await admin
         .from(table)
         .select('id', { count: 'exact', head: true })
-        .eq('organization_id', target);
+        .eq('organization_id', orgA);
       expect(count).toBeGreaterThan(0);
 
-      const { data, error } = await asUserB.from(table).select('id').eq('organization_id', target);
+      const { data, error } = await asUserB.from(table).select('id').eq('organization_id', orgA);
       expect(error).toBeNull();
       expect(data).toEqual([]);
     });

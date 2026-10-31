@@ -3,7 +3,7 @@
 B2B SaaS pre-payment control layer for corporate Accounts Payable (Indonesia). An LLM reads vendor invoices; deterministic code checks every value it read, matches invoices against purchase orders and vendor master data, rejects risky payments with hard rules, and routes grey cases to a human review panel built to resist rubber-stamping. Everything is recorded in an immutable audit trail.
 
 Sources of truth, in order:
-1. `docs/decisions/2026-10-31-v3.md` (decision log D1–D18, D21)
+1. `docs/decisions/2026-10-31-v3.md` (decision log D1–D22)
 2. `docs/product-doc.md` (v3 specification; section numbers below refer to it)
 3. this file
 
@@ -27,14 +27,16 @@ Hard consequences:
 
 ## Stack
 
-Next.js 16 App Router + TypeScript (root `proxy.ts`; `middleware.ts` is the deprecated name) · Tailwind + shadcn/ui (add components on demand) · Supabase (Postgres, Auth, Storage; Singapore) with RLS on every table · `@supabase/ssr` (not auth-helpers) · Zod · PapaParse · `pdfjs-dist` or `unpdf` for PDF text **with positions** (not pdf-parse) · `@anthropic-ai/sdk` · Resend behind `lib/email/` · Vitest · Vercel. Eval: Python 3 in `eval/` (reportlab, pypdfium2, Pillow, pandas, matplotlib).
+Next.js 16 App Router + TypeScript (root `proxy.ts`; `middleware.ts` is the deprecated name) · Tailwind + shadcn/ui (add components on demand) · Supabase (Postgres, Auth, Storage; Singapore) with RLS on every table · `@supabase/ssr` (not auth-helpers) · Zod · PapaParse · `pdfjs-dist` or `unpdf` for PDF text **with positions** (not pdf-parse) · `@anthropic-ai/sdk` (only inside `lib/llm/providers/`) · Resend behind `lib/email/` · Vitest · Vercel. Eval: Python 3 in `eval/` (reportlab, pypdfium2, Pillow, pandas, matplotlib).
 
 Not in MVP unless asked: queues, Python services, vision in the app (vision exists only for the eval), Gmail OAuth, inbox reading, BAST, PO candidate search, partial billing, full SoD, delegation of authority, bank-change workflow, LangGraph/MCP/agent frameworks, fine-tuning.
 
 ## LLM layer (product doc 6.5)
 
-- `lib/llm/client.ts` wraps the provider; models and the price table live in `lib/llm/config.ts`. Check `docs/llm-context/` or docs.claude.com for current model strings; never hardcode them elsewhere.
-- Structured output: force one tool via `tool_choice`, input schema from Zod; validate with Zod anyway; retry once.
+- App code calls only `generateStructured()` and `runToolLoop()` from `lib/llm`. Never import a provider SDK outside `lib/llm/providers/`.
+- Messages and tools use an internal format; the adapter (`lib/llm/providers/anthropic.ts`) translates.
+- Models, effort, and the price table per purpose live in `lib/llm/config.ts`. Defaults: `claude-sonnet-5-5` for extraction, agent, and chatbot; `claude-haiku-5-5` for match explanations. Never hardcode model strings elsewhere.
+- Structured outputs via `output_config.format` with a JSON schema generated from Zod; Zod validates anyway; retry once.
 - Every prompt has a `PROMPT_VERSION` constant. Every call is logged to `llm_calls` (purpose, model, prompt_version, tokens, cost estimate, latency, ok, error_code) via `lib/llm/log-call.ts`.
 
 ## Domain vocabulary and enums (product doc 8)
@@ -83,7 +85,7 @@ Tests first for every deterministic folder; 100% coverage on `lib/matching`.
 - `PARTIAL_MATCH` / `NO_MATCH` → tick every flagged item (each score component below max, each unverified field) + reason.
 - `anomaly_flag` → ticks + reason ≥ `ANOMALY_REASON_MIN_CHARS` (20).
 - `REJECTED` → no approve path in UI or API; investigation note only.
-- Reject always needs a reason. Mark PAID: approver only, from `APPROVED` only.
+- Reject always needs a reason. Mark PAID: approver only (admin cannot), from `APPROVED` only.
 - Server recomputes required items with `requiredReviewItems()` and rejects (400) incomplete submissions. Every review writes `review_sessions` + `audit_logs`.
 - AI-written text (explanations, drafts) is labelled "Dibuat AI" in the UI.
 
@@ -92,7 +94,7 @@ Tests first for every deterministic folder; 100% coverage on `lib/matching`.
 - Eligible: `PARTIAL_MATCH`, `NO_MATCH`, anomaly-flagged, `REJECTED` with `VETO_BANK_MISMATCH`.
 - Recipient = `vendors.contact_email` only, re-read at send time. Never from the invoice, a reply, or LLM output. No contact → no draft.
 - Tools: `get_followup_context` (match bound server-side), `save_draft`, `propose_po_number` (suggestion, validated by code), `flag_suspicious` (display only). **No send tool. No tool that writes vendor, bank, status, or invoice data.**
-- Own loop with `MAX_AGENT_ITERATIONS` (6) in `lib/agent/config.ts`.
+- Loop built on `runToolLoop()` from `lib/llm`, with `MAX_AGENT_ITERATIONS` (6) in `lib/agent/config.ts`.
 - Sending = `POST /api/followups/[id]/send`, triggered by a human. `EMAIL_MODE=dry_run` by default.
 - Pasted vendor replies are untrusted data, wrapped as data in prompts. `lib/followup-checks` detects bank-change requests deterministically; flags only warn.
 - Accepting a proposed PO goes through the normal audited correction flow and re-runs matching.
@@ -131,6 +133,7 @@ Tests first for every deterministic folder; 100% coverage on `lib/matching`.
 - Run the verification for each part before moving on; commit at the end of each phase with `phase N:` in the message.
 - If a request would move a decision into the AI zone or let an LLM touch a state transition or send email, push back and cite this file.
 - Fixtures are in `fixtures/`; generate data with `eval/generate.py` instead of inventing sample data.
+- Tests that write data use the "RLS Audit Fixture" organization, never Demo Corp (D22).
 
 <!-- BEGIN:nextjs-agent-rules -->
 
