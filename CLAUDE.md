@@ -3,7 +3,7 @@
 B2B SaaS pre-payment control layer for corporate Accounts Payable (Indonesia). An LLM reads vendor invoices; deterministic code checks every value it read, matches invoices against purchase orders and vendor master data, rejects risky payments with hard rules, and routes grey cases to a human review panel built to resist rubber-stamping. Everything is recorded in an immutable audit trail.
 
 Sources of truth, in order:
-1. `docs/decisions/2026-10-31-v3.md` (decision log D1–D23)
+1. `docs/decisions/2026-10-31-v3.md` (decision log D1–D24)
 2. `docs/product-doc.md` (v3 specification; section numbers below refer to it)
 3. this file
 
@@ -64,6 +64,7 @@ Indonesian terms: NPWP (tax ID), PO, DPP (pre-tax amount = `subtotal`), PPN (VAT
 - `verified` iff every applicable deterministic signal passes AND `confidence ≠ low`. Manual corrections → `manual`.
 - Money parsing accepts `15.750.000,00`, `15,750,000.00`, with/without `Rp`. Dates: common Indonesian/English formats, `dd/mm` assumed.
 - Arithmetic: `subtotal + tax_amount = total_amount` (±Rp 1; non-PKP: subtotal = total); Σ line_subtotal ≈ subtotal (±0.5%); qty × unit_price = line_subtotal (±Rp 1).
+- Non-PKP (D24): `tax_amount` null or 0 is `verified` only if subtotal = total (±Rp 1), both verified or manual, and no tax keyword is on the page.
 - `CHECKS_VERSION` is stored with every extraction.
 
 ## Matching engine contract (product doc 7)

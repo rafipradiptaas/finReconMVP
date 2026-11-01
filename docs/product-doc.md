@@ -3,7 +3,7 @@
 **Lapisan kontrol sebelum pembayaran untuk modul Accounts Payable**
 Disusun untuk Tim FinRecon AI · 31 Oktober 2026 · Menggantikan Versi 2 (September 2026)
 
-Sumber kebenaran keputusan: `docs/decisions/2026-10-31-v3.md` (D1–D23). Kalau dokumen ini dan decision log berbeda, decision log yang benar dan dokumen ini wajib diperbaiki.
+Sumber kebenaran keputusan: `docs/decisions/2026-10-31-v3.md` (D1–D24). Kalau dokumen ini dan decision log berbeda, decision log yang benar dan dokumen ini wajib diperbaiki.
 
 ---
 
@@ -34,6 +34,7 @@ Sumber kebenaran keputusan: `docs/decisions/2026-10-31-v3.md` (D1–D23). Kalau 
 | D21 | Hak tulis | `anon`/`authenticated` hanya baca. Semua tulis lewat API route server. User tidak pernah dihapus, hanya dinonaktifkan. |
 | D22 | Tindak lanjut Sesi A | PAID hanya `approver`; verifikasi vendor memperbarui `last_verified_at`; import ulang PO yang sudah dipakai invoice ditolak; `document_id` boleh kosong hanya untuk histori impor; halaman admin user di Fase 9. |
 | D23 | Provider aktif | `LLM_PROVIDER` memilih provider. Pengembangan dan demo MVP memakai DeepSeek lewat `lib/llm/providers/openai-compatible.ts`; adapter Anthropic tetap ada untuk vision dan perbandingan eval. Hanya data sintetis/demo yang boleh dikirim sampai ada keputusan residensi data per klien. |
+| D24 | Pajak non-PKP | `tax_amount` kosong atau 0 bisa `verified` bila `subtotal = total_amount`, keduanya terpercaya, dan tidak ada kata pajak di dokumen. |
 
 ---
 
@@ -282,6 +283,8 @@ Fungsi murni, tanpa I/O, tanpa import dari zona AI. Konstanta `CHECKS_VERSION` d
 | `model_confidence` | Dari LLM | semua |
 
 **Status verifikasi** (`FieldVerification`): `verified` jika **semua** sinyal deterministik yang berlaku lolos **dan** `model_confidence ≠ low`; selain itu `unverified`. Field yang dikoreksi manusia → `manual` (dianggap terpercaya).
+
+**Pajak kosong pada invoice non-PKP (D24):** `tax_amount` `null` atau 0 menjadi `verified` hanya jika `subtotal = total_amount` (±Rp 1), keduanya `verified` atau `manual`, dan teks dokumen tidak memuat kata pajak (daftar di `config.ts`, tidak peka huruf besar-kecil: PPN, Pajak, VAT, Tax, Pajak Pertambahan Nilai). Ada kata pajak → tetap `unverified`. Bila angka di baris pajak ditambah `subtotal` juga tercetak sebagai nominal, berarti model menjatuhkan pajak yang nyata: `arithmetic_ok` `total_amount` gagal dan dokumen masuk `NEEDS_CORRECTION`. Tanpa text layer (vision) → tetap `unverified`.
 
 **Bukti** (`locateEvidence(source_text, textItems)`): mencari `source_text` di item teks hasil router → daftar `{page, bbox}` untuk highlight di review UI. Tidak ketemu → `[]` (UI menampilkan "lokasi bukti tidak ditemukan").
 

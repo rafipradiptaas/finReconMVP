@@ -1,13 +1,11 @@
 import { getDocumentProxy } from 'unpdf';
+import { SAME_LINE_POINTS, textFromItems } from '@/lib/extraction-checks/text';
 import type { TextItem } from '@/lib/extraction-checks/types';
 
 /** Fewer characters than this means there is no usable text layer (product doc 6.1). */
 export const MIN_TEXT_CHARS = 50;
 
 export type PdfText = { fullText: string; items: TextItem[] };
-
-/** Items on one line differ by less than this many points in y. */
-const SAME_LINE_POINTS = 3;
 
 /**
  * Reads every text item with its page and position. bbox is in PDF points with
@@ -38,18 +36,5 @@ export async function extractPdfText(bytes: Uint8Array): Promise<PdfText> {
       a.page - b.page ||
       (Math.abs(a.bbox.y - b.bbox.y) < SAME_LINE_POINTS ? a.bbox.x - b.bbox.x : a.bbox.y - b.bbox.y),
   );
-  return { fullText: toLines(items), items };
-}
-
-function toLines(items: TextItem[]): string {
-  const lines: string[] = [];
-  let previous: TextItem | undefined;
-  for (const item of items) {
-    const sameLine =
-      previous?.page === item.page && Math.abs(previous.bbox.y - item.bbox.y) < SAME_LINE_POINTS;
-    if (sameLine) lines[lines.length - 1] += `  ${item.str}`;
-    else lines.push(item.str);
-    previous = item;
-  }
-  return lines.join('\n');
+  return { fullText: textFromItems(items), items };
 }

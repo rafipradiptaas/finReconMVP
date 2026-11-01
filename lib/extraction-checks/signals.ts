@@ -4,6 +4,7 @@ import {
   AMOUNT_TOLERANCE_RUPIAH,
   LINES_SUM_TOLERANCE,
   NPWP_DIGITS,
+  TAX_KEYWORDS,
 } from './config';
 import { normalizeDate, normalizeDigits, normalizeMoney, normalizeText } from './normalize';
 import type { LineItem } from './types';
@@ -122,4 +123,27 @@ export function linesSumOk(lineSubtotals: number[], subtotal: number): boolean {
   if (lineSubtotals.length === 0) return false;
   const sum = lineSubtotals.reduce((total, value) => total + cents(value), 0);
   return Math.abs(sum - cents(subtotal)) <= cents(subtotal) * LINES_SUM_TOLERANCE + 1e-6;
+}
+
+const TAX_WORD = new RegExp(`\\b(${TAX_KEYWORDS.join('|')})\\b`, 'i');
+
+export function hasTaxKeyword(text: string): boolean {
+  return TAX_WORD.test(text);
+}
+
+/**
+ * True when a number on a tax line, added to the subtotal, is printed as an
+ * amount in the document: proof of a tax the extractor dropped. A tax word
+ * alone proves nothing, because "Tax ID (NPWP)" sits on non-PKP invoices too.
+ */
+export function printsTaxAmount(subtotal: number, text: string): boolean {
+  return text
+    .split('\n')
+    .filter(hasTaxKeyword)
+    .some((line) =>
+      (line.match(NUMBER_TOKEN) ?? []).some((token) => {
+        const amount = normalizeMoney(token);
+        return amount !== null && amount > 0 && groundedMoney(subtotal + amount, text);
+      }),
+    );
 }

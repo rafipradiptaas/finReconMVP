@@ -14,10 +14,20 @@ async function main() {
 
   let checked = 0;
   let correct = 0;
+  let calls = 0;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cost = 0;
   const wrongButVerified: string[] = [];
 
   for (const truth of truths) {
     const { result, fields, status } = await extractDocument(truth.file, {});
+    for (const record of result?.records ?? []) {
+      calls++;
+      inputTokens += record.input_tokens ?? 0;
+      outputTokens += record.output_tokens ?? 0;
+      cost += record.cost_estimate_usd ?? 0;
+    }
     for (const name of CRITICAL_EXTRACTION_FIELDS) {
       const isCorrect = fields !== null && fieldCorrect(name, fields[name].value, truth.fields[name]);
       checked++;
@@ -32,6 +42,8 @@ async function main() {
   const accuracy = correct / checked;
   console.log(`critical-field accuracy: ${correct}/${checked} = ${accuracy.toFixed(3)}`);
   console.log(`wrong while verified: ${wrongButVerified.length}`);
+  console.log(`calls: ${calls}, tokens: ${inputTokens} in + ${outputTokens} out`);
+  console.log(`estimated cost: $${cost.toFixed(4)}`);
   wrongButVerified.forEach((item) => console.log(`  ${item}`));
 
   if (accuracy < MIN_CRITICAL_ACCURACY || wrongButVerified.length > 0) {

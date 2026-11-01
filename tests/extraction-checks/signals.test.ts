@@ -6,8 +6,10 @@ import {
   groundedDigits,
   groundedMoney,
   groundedText,
+  hasTaxKeyword,
   lineArithmeticOk,
   linesSumOk,
+  printsTaxAmount,
 } from '@/lib/extraction-checks/signals';
 
 const TEXT = `INVOICE INV-2026-001
@@ -126,5 +128,33 @@ describe('arithmetic_ok', () => {
     expect(linesSumOk([500, 505], 1000)).toBe(true);
     expect(linesSumOk([1005.01], 1000)).toBe(false);
     expect(linesSumOk([], 1000)).toBe(false);
+  });
+});
+
+describe('tax lines (D24)', () => {
+  it.each(['PPN 11%', 'ppn', 'Pajak', 'VAT 11%', 'Sales Tax', 'Pajak Pertambahan Nilai'])(
+    'finds %s, in any case',
+    (text) => {
+      expect(hasTaxKeyword(`Subtotal 100\n${text}\nTotal 100`)).toBe(true);
+    },
+  );
+
+  it('matches whole words only', () => {
+    expect(hasTaxKeyword('Taxi Bandara\nSUPPNA\nNPWP 01.123.456.7-891.000')).toBe(false);
+  });
+
+  it('proves a dropped tax line when subtotal + the tax amount is printed', () => {
+    const text = 'Subtotal  Rp 24.000.000\nPPN 11%  Rp 2.640.000\nTOTAL  Rp 26.640.000';
+    expect(printsTaxAmount(24000000, text)).toBe(true);
+  });
+
+  it('is not fooled by other numbers on a line with a tax word', () => {
+    const text =
+      'Tax ID (NPWP) 01.123.456.7-891.000\nFaktur Pajak tgl 15/07/2026\nHarga termasuk PPN 11%\nTOTAL  Rp 3.900.000';
+    expect(printsTaxAmount(3900000, text)).toBe(false);
+  });
+
+  it('a zero tax line proves nothing', () => {
+    expect(printsTaxAmount(1000, 'PPN  Rp 0\nTotal  Rp 1.000')).toBe(false);
   });
 });

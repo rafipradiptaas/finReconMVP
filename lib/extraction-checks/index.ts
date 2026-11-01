@@ -9,8 +9,10 @@ import {
   groundedMoney,
   groundedText,
   groundedWords,
+  hasTaxKeyword,
   lineArithmeticOk,
   linesSumOk,
+  printsTaxAmount,
 } from './signals';
 import {
   AMOUNT_FIELDS,
@@ -26,6 +28,7 @@ import {
 import { fieldVerification } from './verify';
 
 export { CHECKS_VERSION } from './config';
+export { textFromItems } from './text';
 export type { CheckedField, CheckedInvoice, LineItem, RawInvoice, TextItem } from './types';
 
 /** text is null when there is no text layer (vision): grounded then does not apply. */
@@ -63,13 +66,13 @@ function checkLine(raw: RawField<LineItem>, text: string | null, items: TextItem
   });
 }
 
-/** Both Σ lines ≈ subtotal and subtotal + tax = total, as of the current values. */
-function arithmetic(fields: {
-  subtotal: number | null;
-  tax: number | null;
-  total: number | null;
-  lines: (LineItem | null)[];
-}) {
+const noTax = (tax: number | null) => tax === null || tax === 0;
+
+/** Every arithmetic rule, as of the current values. text is null with no text layer. */
+function arithmetic(
+  fields: { subtotal: number | null; tax: number | null; total: number | null; lines: (LineItem | null)[] },
+  text: string | null,
+) {
   const present = fields.lines.filter((line) => line !== null);
   const amountsOk = amountsConsistent(fields.subtotal, fields.tax, fields.total);
   const sumOk =
@@ -79,7 +82,31 @@ function arithmetic(fields: {
           present.map((line) => line.line_subtotal),
           fields.subtotal,
         );
-  return { amountsOk, sumOk };
+  const droppedTax =
+    noTax(fields.tax) &&
+    text !== null &&
+    fields.subtotal !== null &&
+    printsTaxAmount(fields.subtotal, text);
+  return { amountsOk, sumOk, totalOk: amountsOk && !droppedTax };
+}
+
+/**
+ * A null or zero tax is confirmed, not merely absent, only when the amounts it
+ * rests on are trusted, they agree, and nothing on the page mentions tax (D24).
+ */
+function withNoTaxRule(fields: CheckedInvoice, text: string | null): CheckedInvoice {
+  const { subtotal, tax_amount, total_amount } = fields;
+  if (!noTax(tax_amount.value) || tax_amount.verification === 'manual') return fields;
+  const confirmed =
+    text !== null &&
+    !hasTaxKeyword(text) &&
+    subtotal.verification !== 'unverified' &&
+    total_amount.verification !== 'unverified' &&
+    amountsConsistent(subtotal.value, null, total_amount.value);
+  return {
+    ...fields,
+    tax_amount: { ...tax_amount, verification: confirmed ? 'verified' : 'unverified' },
+  };
 }
 
 export function runExtractionChecks(raw: RawInvoice, { text, items }: DocumentText): CheckedInvoice {
@@ -100,12 +127,15 @@ export function runExtractionChecks(raw: RawInvoice, { text, items }: DocumentTe
     });
   };
 
-  const { amountsOk, sumOk } = arithmetic({
-    subtotal: raw.subtotal.value,
-    tax: raw.tax_amount.value,
-    total: raw.total_amount.value,
-    lines: raw.line_items.map((line) => line.value),
-  });
+  const { amountsOk, sumOk, totalOk } = arithmetic(
+    {
+      subtotal: raw.subtotal.value,
+      tax: raw.tax_amount.value,
+      total: raw.total_amount.value,
+      lines: raw.line_items.map((line) => line.value),
+    },
+    text,
+  );
   const amountField = (field: (typeof AMOUNT_FIELDS)[number], arithmeticOk: boolean) => {
     const { value } = raw[field];
     return checked(raw[field], items, {
@@ -118,7 +148,7 @@ export function runExtractionChecks(raw: RawInvoice, { text, items }: DocumentTe
 
   const date = raw.invoice_date.value;
   const iso = date === null ? null : normalizeDate(date);
-  return {
+  const fields: CheckedInvoice = {
     invoice_number: textField('invoice_number'),
     invoice_date: checked(raw.invoice_date, items, {
       grounded: iso === null ? (date === null ? null : false) : grounded((t) => groundedDate(iso, t)),
@@ -132,9 +162,10 @@ export function runExtractionChecks(raw: RawInvoice, { text, items }: DocumentTe
     bank_account_holder: textField('bank_account_holder'),
     subtotal: amountField('subtotal', amountsOk && sumOk !== false),
     tax_amount: amountField('tax_amount', amountsOk),
-    total_amount: amountField('total_amount', amountsOk),
+    total_amount: amountField('total_amount', totalOk),
     line_items: raw.line_items.map((line) => checkLine(line, text, items, sumOk)),
   };
+  return withNoTaxRule(fields, text);
 }
 
 /** NEEDS_CORRECTION iff any critical field is null or unverified (product doc 6.4). */
@@ -162,7 +193,11 @@ function rechecked<T>(field: CheckedField<T>, arithmeticOk: boolean | null): Che
  * A human correction is trusted as given (manual). The arithmetic is then
  * rerun, because fixing one amount can confirm or break the others.
  */
-export function applyCorrections(fields: CheckedInvoice, corrections: Corrections): CheckedInvoice {
+export function applyCorrections(
+  fields: CheckedInvoice,
+  corrections: Corrections,
+  text: string | null,
+): CheckedInvoice {
   const next = { ...fields };
   for (const [name, value] of Object.entries(corrections) as [ScalarField, string | number | null][]) {
     const manual: FieldConfidence = 'manual';
@@ -176,19 +211,25 @@ export function applyCorrections(fields: CheckedInvoice, corrections: Correction
     } as never;
   }
 
-  const { amountsOk, sumOk } = arithmetic({
-    subtotal: next.subtotal.value,
-    tax: next.tax_amount.value,
-    total: next.total_amount.value,
-    lines: next.line_items.map((line) => line.value),
-  });
-  return {
-    ...next,
-    subtotal: rechecked(next.subtotal, amountsOk && sumOk !== false),
-    tax_amount: rechecked(next.tax_amount, amountsOk),
-    total_amount: rechecked(next.total_amount, amountsOk),
-    line_items: next.line_items.map((line) =>
-      rechecked(line, line.value === null ? null : lineArithmeticOk(line.value) && sumOk !== false),
-    ),
-  };
+  const { amountsOk, sumOk, totalOk } = arithmetic(
+    {
+      subtotal: next.subtotal.value,
+      tax: next.tax_amount.value,
+      total: next.total_amount.value,
+      lines: next.line_items.map((line) => line.value),
+    },
+    text,
+  );
+  return withNoTaxRule(
+    {
+      ...next,
+      subtotal: rechecked(next.subtotal, amountsOk && sumOk !== false),
+      tax_amount: rechecked(next.tax_amount, amountsOk),
+      total_amount: rechecked(next.total_amount, totalOk),
+      line_items: next.line_items.map((line) =>
+        rechecked(line, line.value === null ? null : lineArithmeticOk(line.value) && sumOk !== false),
+      ),
+    },
+    text,
+  );
 }

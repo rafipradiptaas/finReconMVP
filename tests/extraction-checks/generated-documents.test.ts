@@ -79,4 +79,23 @@ describe('what the checks must catch on real documents', () => {
     expect(fields.subtotal.signals.arithmetic_ok).toBe(false);
     expect(documentStatus(fields)).toBe('NEEDS_CORRECTION');
   });
+
+  it('a real non-PKP PDF verifies a null tax (D24)', async () => {
+    const truth = fx('fx05');
+    const { fields } = await check({ ...truth, fields: { ...truth.fields, tax_amount: null } });
+    expect(fields.tax_amount.value).toBeNull();
+    expect(fields.tax_amount.verification).toBe('verified');
+    expect(documentStatus(fields)).toBe('EXTRACTED');
+  });
+
+  it('a PDF that prints PPN cannot lose it (D24)', async () => {
+    const truth = fx('fx01');
+    const { fields } = await check({
+      ...truth,
+      fields: { ...truth.fields, tax_amount: null, total_amount: truth.fields.subtotal },
+    });
+    expect(fields.tax_amount.verification).toBe('unverified');
+    expect(fields.total_amount.signals.arithmetic_ok).toBe(false);
+    expect(documentStatus(fields)).toBe('NEEDS_CORRECTION');
+  });
 });
