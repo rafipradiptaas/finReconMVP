@@ -10,7 +10,9 @@ vi.mock('@anthropic-ai/sdk', async (original) => {
   return { ...actual, default: Mock };
 });
 
-const { structuredTurn, toolTurn } = await import('@/lib/llm/providers/anthropic');
+const { providerErrorCode, structuredTurn, toolTurn } = await import('@/lib/llm/providers/anthropic');
+const { default: Anthropic } = await import('@anthropic-ai/sdk');
+const { MissingApiKeyError } = await import('@/lib/llm/errors');
 const { invoiceExtractionSchema } = await import('@/lib/llm/schemas/invoice');
 
 const settings = { model: 'm', effort: 'high', maxTokens: 100, system: 's' } as const;
@@ -36,7 +38,10 @@ async function sentSchema() {
   return create.mock.calls[0][0].output_config.format.schema as Json;
 }
 
-beforeEach(() => create.mockReset());
+beforeEach(() => {
+  create.mockReset();
+  vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+});
 
 describe('structuredTurn', () => {
   it('uses output_config.format and never forces a tool', async () => {
@@ -133,5 +138,36 @@ describe('toolTurn', () => {
       { type: 'tool_use', id: 't1', name: 'add', input: { a: 1 } },
     ]);
     expect(user.content[0]).toMatchObject({ type: 'tool_result', tool_use_id: 't1' });
+  });
+});
+
+describe('error codes', () => {
+  const status = (code: number) => Anthropic.APIError.generate(code, {}, 'failed', new Headers());
+
+  it.each([
+    [401, 'auth_rejected'],
+    [403, 'auth_rejected'],
+    [429, 'rate_limited'],
+    [400, 'bad_request'],
+    [500, 'provider_error'],
+  ])('HTTP %i → %s', (code, expected) => {
+    expect(providerErrorCode(status(code))).toBe(expected);
+  });
+
+  it('tells a network failure from a provider failure', () => {
+    expect(providerErrorCode(new Anthropic.APIConnectionError({ message: 'down' }))).toBe('network_error');
+  });
+
+  it('reports a missing key before sending anything', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '');
+    vi.stubEnv('ANTHROPIC_AUTH_TOKEN', '');
+    const failure = structuredTurn({ ...settings, input: 'i', schema: z.object({}) });
+    await expect(failure).rejects.toBeInstanceOf(MissingApiKeyError);
+    expect(providerErrorCode(await failure.catch((error) => error))).toBe('missing_api_key');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('anything unknown stays a generic provider error', () => {
+    expect(providerErrorCode(new Error('surprise'))).toBe('provider_error');
   });
 });

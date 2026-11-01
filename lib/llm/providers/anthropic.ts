@@ -1,10 +1,17 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
+import { codeForStatus, MissingApiKeyError, type LlmErrorCode } from '../errors';
 import type { LlmBlock, LlmImage, LlmMessage, LlmTool, TurnRequest, TurnResult } from '../types';
 
 let client: Anthropic | undefined;
-const anthropic = () => (client ??= new Anthropic());
+
+function anthropic() {
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
+    throw new MissingApiKeyError('ANTHROPIC_API_KEY');
+  }
+  return (client ??= new Anthropic());
+}
 
 function toResult(message: Anthropic.Message): TurnResult {
   const blocks = message.content.map((block): LlmBlock => {
@@ -94,8 +101,9 @@ export async function toolTurn(
 }
 
 /** Stable code for llm_calls.error_code. */
-export function providerErrorCode(error: unknown): string {
-  return error instanceof Anthropic.APIError && error.status
-    ? `http_${error.status}`
-    : 'provider_error';
+export function providerErrorCode(error: unknown): LlmErrorCode {
+  if (error instanceof MissingApiKeyError) return 'missing_api_key';
+  if (error instanceof Anthropic.APIConnectionError) return 'network_error';
+  if (error instanceof Anthropic.APIError && error.status) return codeForStatus(error.status);
+  return 'provider_error';
 }

@@ -4,7 +4,7 @@ import { z } from 'zod';
 const provider = vi.hoisted(() => ({
   structuredTurn: vi.fn(),
   toolTurn: vi.fn(),
-  providerErrorCode: () => 'http_500',
+  providerErrorCode: () => 'rate_limited',
 }));
 vi.mock('@/lib/llm/providers/anthropic', () => provider);
 
@@ -79,9 +79,20 @@ describe('generateStructured', () => {
     expect(provider.structuredTurn).toHaveBeenCalledTimes(2);
   });
 
+  it('tells schema-invalid output from broken JSON', async () => {
+    provider.structuredTurn.mockResolvedValue(text({ a: 'x' }));
+    await expect(call()).rejects.toMatchObject({ code: 'schema_invalid' });
+  });
+
   it('never retries a provider error or a refusal', async () => {
     provider.structuredTurn.mockRejectedValue(new Error('boom'));
-    await expect(call()).rejects.toBeInstanceOf(LlmError);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failure = await call().catch((error) => error);
+    expect(failure).toBeInstanceOf(LlmError);
+    expect(failure.code).toBe('rate_limited');
+    expect(failure.records[0]).toMatchObject({ ok: false, error_code: 'rate_limited' });
+    expect(errors).toHaveBeenCalledWith('LLM call failed (rate_limited):', 'boom');
+    errors.mockRestore();
     expect(provider.structuredTurn).toHaveBeenCalledTimes(1);
 
     provider.structuredTurn.mockReset();
@@ -133,7 +144,9 @@ describe('extractInvoice', () => {
 
   it('a missing API key or outage is also a value, never an exception', async () => {
     provider.structuredTurn.mockRejectedValue(new Error('no key'));
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     await expect(extractInvoice('dokumen')).resolves.toMatchObject({ ok: false });
+    errors.mockRestore();
   });
 });
 

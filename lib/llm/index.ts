@@ -42,6 +42,13 @@ function record(
   };
 }
 
+/** The code goes to llm_calls; the message is what tells an operator what to fix. */
+function providerFailure(error: unknown) {
+  const code = providerErrorCode(error);
+  console.error(`LLM call failed (${code}):`, error instanceof Error ? error.message : error);
+  return code;
+}
+
 const textOf = (blocks: LlmBlock[]) =>
   blocks.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('');
 
@@ -72,7 +79,7 @@ export async function generateStructured<Schema extends z.ZodType>(
       turn = await structuredTurn({ model, effort, maxTokens, system, input, images, schema });
     } catch (error) {
       // The SDK already retries transient failures, so this one is final.
-      code = providerErrorCode(error);
+      code = providerFailure(error);
       records.push(await logCall(record(options, model, started, undefined, code), options.log));
       break;
     }
@@ -139,7 +146,7 @@ export async function runToolLoop(
     try {
       turn = await toolTurn({ model, effort, maxTokens, system, messages, tools });
     } catch (error) {
-      const code = providerErrorCode(error);
+      const code = providerFailure(error);
       records.push(await logCall(record(options, model, started, undefined, code), options.log));
       throw new LlmError(code, records);
     }
