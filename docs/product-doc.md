@@ -3,7 +3,7 @@
 **Lapisan kontrol sebelum pembayaran untuk modul Accounts Payable**
 Disusun untuk Tim FinRecon AI · 31 Oktober 2026 · Menggantikan Versi 2 (September 2026)
 
-Sumber kebenaran keputusan: `docs/decisions/2026-10-31-v3.md` (D1–D22). Kalau dokumen ini dan decision log berbeda, decision log yang benar dan dokumen ini wajib diperbaiki.
+Sumber kebenaran keputusan: `docs/decisions/2026-10-31-v3.md` (D1–D23). Kalau dokumen ini dan decision log berbeda, decision log yang benar dan dokumen ini wajib diperbaiki.
 
 ---
 
@@ -33,6 +33,7 @@ Sumber kebenaran keputusan: `docs/decisions/2026-10-31-v3.md` (D1–D22). Kalau 
 | D20 | Prioritas | Urutan kerja menuju MVP 7 Nov 2026. Cakupan tetap; hanya urutan dan kedalaman yang berubah. |
 | D21 | Hak tulis | `anon`/`authenticated` hanya baca. Semua tulis lewat API route server. User tidak pernah dihapus, hanya dinonaktifkan. |
 | D22 | Tindak lanjut Sesi A | PAID hanya `approver`; verifikasi vendor memperbarui `last_verified_at`; import ulang PO yang sudah dipakai invoice ditolak; `document_id` boleh kosong hanya untuk histori impor; halaman admin user di Fase 9. |
+| D23 | Provider aktif | `LLM_PROVIDER` memilih provider. Pengembangan dan demo MVP memakai DeepSeek lewat `lib/llm/providers/openai-compatible.ts`; adapter Anthropic tetap ada untuk vision dan perbandingan eval. Hanya data sintetis/demo yang boleh dikirim sampai ada keputusan residensi data per klien. |
 
 ---
 
@@ -293,9 +294,11 @@ Fungsi murni, tanpa I/O, tanpa import dari zona AI. Konstanta `CHECKS_VERSION` d
 ### 6.5 Lapisan LLM (D9)
 
 - **Antarmuka (D19):** kode aplikasi hanya memanggil `generateStructured({purpose, system, input, images?, schema})` dan `runToolLoop({purpose, system, messages, tools, maxIterations})` dari `lib/llm`. Pesan dan tool memakai format internal.
-- **Adapter:** `lib/llm/providers/anthropic.ts` menerjemahkan format internal dan menjadi satu-satunya file yang meng-import `@anthropic-ai/sdk`. Adapter kompatibel OpenAI (OpenAI, DeepSeek, Qwen, model open-weight self-hosted) = roadmap, dan tidak boleh menyentuh pemanggil.
-- **Model default** (`lib/llm/config.ts`, per tujuan, diverifikasi ke halaman model resmi 31 Okt 2026): ekstraksi, agent, dan chatbot `claude-sonnet-5-5`; narasi match `claude-haiku-5-5`. `effort` bisa diatur per tujuan.
-- **Output terstruktur:** Claude structured outputs (`output_config.format` dengan JSON schema yang dibangkitkan dari Zod). JSON schema tidak mendukung batas numerik/panjang, jadi Zod tetap memvalidasi setiap hasil; retry 1× bila invalid.
+- **Adapter:** format internal diterjemahkan oleh adapter di `lib/llm/providers/`. `anthropic.ts` satu-satunya file yang meng-import `@anthropic-ai/sdk`; `openai-compatible.ts` satu-satunya yang meng-import `openai`.
+- **Provider aktif (D23):** env `LLM_PROVIDER` (`deepseek` | `anthropic`). Pengembangan dan demo MVP berjalan di DeepSeek; adapter Anthropic tetap teruji dan menjadi jalur vision serta perbandingan eval. Nama model, base URL, dan metode output terstruktur DeepSeek mengikuti dokumen resminya (`docs/llm-context/deepseek.md`).
+- **Data (D23):** DeepSeek memproses data di servernya sendiri (Tiongkok). Hanya data sintetis/demo yang boleh dikirim. Invoice klien nyata tidak boleh dikirim ke provider mana pun sebelum ada keputusan residensi data per klien (D15).
+- **Model default** (`lib/llm/config.ts`, per tujuan dan per provider). Anthropic, diverifikasi ke halaman model resmi 31 Okt 2026: ekstraksi, agent, dan chatbot `claude-sonnet-5-5`; narasi match `claude-haiku-5-5`. `effort` bisa diatur per tujuan.
+- **Output terstruktur:** di Anthropic, Claude structured outputs (`output_config.format` dengan JSON schema yang dibangkitkan dari Zod). Di DeepSeek, metode yang dikonfirmasi di `docs/llm-context/deepseek.md`. Zod tetap memvalidasi setiap hasil; retry 1× bila invalid.
 - **Ganti provider:** cukup satu file adapter dan perubahan config, tapi wajib eval penuh + red-team agent sebelum dipakai. Residensi data (lokasi provider vs self-hosting) diputuskan per klien (D15).
 - Setiap prompt punya konstanta `PROMPT_VERSION`.
 - Setiap panggilan LLM dicatat di `llm_calls` (Bagian 14): purpose, model, prompt_version, token, estimasi biaya (tabel harga di config, dengan komentar "verifikasi ke halaman pricing resmi"), latensi, ok, error_code.
@@ -631,7 +634,7 @@ Migration v3: `supabase/migrations/0002_v3.sql` (kolom & tabel baru, enum baru, 
 | Database / Auth / Storage | Supabase, region Singapore | RLS di semua tabel; bucket `documents` |
 | Teks PDF + posisi | `pdfjs-dist` atau `unpdf` | Menggantikan `pdf-parse` |
 | CSV | PapaParse | |
-| LLM | Claude API (Sonnet 5.5 / Haiku 5.5) via `@anthropic-ai/sdk` hanya di `lib/llm/providers/` | Antarmuka `generateStructured`/`runToolLoop`; structured outputs + Zod |
+| LLM | DeepSeek via `openai` (provider aktif, D23) dan Claude API (Sonnet 5.5 / Haiku 5.5) via `@anthropic-ai/sdk`, keduanya hanya di `lib/llm/providers/` | Antarmuka `generateStructured`/`runToolLoop`; dipilih `LLM_PROVIDER`; Zod memvalidasi output |
 | Similarity | Jaro-Winkler sendiri (`lib/matching/similarity.ts`) | Tanpa fuse.js |
 | Agent & chatbot | `runToolLoop()` dari `lib/llm` | Tanpa LangGraph/MCP |
 | Email | Resend di balik `lib/email/` | `EMAIL_MODE=dry_run` default |
@@ -706,7 +709,7 @@ finrecon-ai/
 │   ├── review/                      # DETERMINISTIK: config, required-items, validate-decision
 │   ├── followup-checks/             # DETERMINISTIK: detect-bank-change
 │   ├── email/                       # DETERMINISTIK transport: index (interface), resend.ts, dry-run.ts
-│   ├── llm/                         # AI: config, index (generateStructured, runToolLoop), providers/anthropic.ts, log-call, schemas/, extract-invoice, extract-invoice-vision, explain-match
+│   ├── llm/                         # AI: config, index (generateStructured, runToolLoop), providers/anthropic.ts, providers/openai-compatible.ts, log-call, schemas/, extract-invoice, extract-invoice-vision, explain-match
 │   ├── agent/                       # AI: config, tools, loop, prompts
 │   ├── chatbot/                     # AI: tools, tool-schemas, loop
 │   ├── server/                      # write-context.ts: satu-satunya jalur tulis (D21)
@@ -779,6 +782,7 @@ Produk kedua yang di-park: Financial Due Diligence Agent.
 | Dataset histori (`invoice_history.csv`, 8–10 vendor × 12–24 transaksi, 3–5 anomali, 1–2 duplikat) | Diminta ke consulting firm; fallback sintetis | BizDev |
 | Kalibrasi ambang 90/60/×3/Rp 500 jt/Rp 100 jt | Setelah dataset & eval ada | Engineering |
 | Data residency & UU PDP untuk klien pemerintah/teregulasi (Supabase Singapore + Claude API di AS; rekening perorangan = data pribadi) | Perlu kajian sebelum menawarkan ke klien pemerintah | BizDev + Engineering |
+| Provider LLM untuk data klien nyata (D23: DeepSeek memproses data di Tiongkok; saat ini hanya data sintetis/demo) | Wajib diputuskan per klien sebelum invoice nyata dikirim ke provider mana pun | BizDev + Engineering |
 | Kepemilikan IP/kode antara tim engineering dan firma BizDev | Perlu disepakati tertulis sebelum klien berbayar | Tim + BizDev |
 | Akses API Coretax untuk pihak ketiga | Belum diverifikasi (roadmap) | Engineering |
 | Jawaban standar "integrasi ke ERP kami?" | Disusun sebelum pitching | BizDev + Engineering |
