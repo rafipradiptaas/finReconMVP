@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 const provider = vi.hoisted(() => ({
@@ -7,11 +7,12 @@ const provider = vi.hoisted(() => ({
   providerErrorCode: () => 'rate_limited',
 }));
 vi.mock('@/lib/llm/providers/anthropic', () => provider);
+vi.stubEnv('LLM_PROVIDER', 'anthropic');
 
 const { generateStructured, LlmError, runToolLoop } = await import('@/lib/llm');
 const { extractInvoice } = await import('@/lib/llm/extract-invoice');
 const { estimateCostUsd } = await import('@/lib/llm/log-call');
-const { PRICE_USD_PER_MTOK } = await import('@/lib/llm/config');
+const { PRICE_USD_PER_MTOK, purposeConfig } = await import('@/lib/llm/config');
 
 const usage = { inputTokens: 1000, outputTokens: 100 };
 const text = (value: unknown) => ({
@@ -224,10 +225,46 @@ describe('runToolLoop', () => {
   });
 });
 
+describe('provider selection (D23)', () => {
+  afterEach(() => {
+    vi.stubEnv('LLM_PROVIDER', 'anthropic');
+  });
+
+  it('follows LLM_PROVIDER, and defaults to DeepSeek', () => {
+    vi.stubEnv('LLM_PROVIDER', 'deepseek');
+    expect(purposeConfig('extract_invoice')).toMatchObject({ provider: 'deepseek', model: 'deepseek-flash' });
+    vi.stubEnv('LLM_PROVIDER', '');
+    expect(purposeConfig('chatbot').provider).toBe('deepseek');
+    vi.stubEnv('LLM_PROVIDER', 'anthropic');
+    expect(purposeConfig('extract_invoice')).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5-5' });
+  });
+
+  it('keeps vision on Anthropic under either setting', () => {
+    for (const setting of ['deepseek', 'anthropic']) {
+      vi.stubEnv('LLM_PROVIDER', setting);
+      expect(purposeConfig('extract_invoice_vision').provider).toBe('anthropic');
+    }
+  });
+
+  it('an unknown provider is a config error, reported as a value by the extractor', async () => {
+    vi.stubEnv('LLM_PROVIDER', 'gemini');
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(extractInvoice('dokumen')).resolves.toMatchObject({ ok: false, errorCode: 'config_error' });
+    errors.mockRestore();
+    expect(provider.structuredTurn).not.toHaveBeenCalled();
+  });
+});
+
 describe('prices', () => {
-  it('covers every model in the config', async () => {
-    const { LLM_CONFIG } = await import('@/lib/llm/config');
-    for (const { model } of Object.values(LLM_CONFIG)) expect(PRICE_USD_PER_MTOK[model]).toBeDefined();
+  it('covers every model in the config', () => {
+    const purposes = ['extract_invoice', 'extract_invoice_vision', 'explain_match', 'agent_followup', 'agent_reply', 'chatbot'] as const;
+    for (const setting of ['deepseek', 'anthropic']) {
+      vi.stubEnv('LLM_PROVIDER', setting);
+      for (const purpose of purposes) {
+        expect(PRICE_USD_PER_MTOK[purposeConfig(purpose).model]).toBeDefined();
+      }
+    }
+    vi.stubEnv('LLM_PROVIDER', 'anthropic');
   });
 
   it('has no estimate for an unknown model', () => {

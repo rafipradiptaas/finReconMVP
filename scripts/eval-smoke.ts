@@ -17,7 +17,7 @@ async function main() {
   const wrongButVerified: string[] = [];
 
   for (const truth of truths) {
-    const { fields, status } = await extractDocument(truth.file, {});
+    const { result, fields, status } = await extractDocument(truth.file, {});
     for (const name of CRITICAL_EXTRACTION_FIELDS) {
       const isCorrect = fields !== null && fieldCorrect(name, fields[name].value, truth.fields[name]);
       checked++;
@@ -26,7 +26,7 @@ async function main() {
         wrongButVerified.push(`${truth.doc_id}.${name}: ${fields[name].value}`);
       }
     }
-    console.log(`${truth.doc_id}: ${status}`);
+    console.log(`${truth.doc_id}: ${status}${result && !result.ok ? ` (${result.errorCode})` : ''}`);
   }
 
   const accuracy = correct / checked;

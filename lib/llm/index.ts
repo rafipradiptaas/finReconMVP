@@ -1,7 +1,8 @@
 import type { z } from 'zod';
-import { LLM_CONFIG, MAX_STRUCTURED_ATTEMPTS } from './config';
+import { MAX_STRUCTURED_ATTEMPTS, purposeConfig } from './config';
 import { estimateCostUsd, logCall, type LlmCallRecord } from './log-call';
-import { providerErrorCode, structuredTurn, toolTurn } from './providers/anthropic';
+import * as anthropic from './providers/anthropic';
+import * as openaiCompatible from './providers/openai-compatible';
 import type { CallOptions, LlmBlock, LlmImage, LlmMessage, LlmTool, LlmUsage, TurnResult } from './types';
 
 export type { LlmCallRecord, LlmCallSink } from './log-call';
@@ -17,9 +18,21 @@ export class LlmError extends Error {
   }
 }
 
+const ADAPTERS = { anthropic, deepseek: openaiCompatible };
+
 function settings({ purpose, model, effort }: CallOptions) {
-  const config = LLM_CONFIG[purpose];
-  return { ...config, model: model ?? config.model, effort: effort ?? config.effort };
+  try {
+    const config = purposeConfig(purpose);
+    return {
+      ...config,
+      adapter: ADAPTERS[config.provider],
+      model: model ?? config.model,
+      effort: effort ?? config.effort,
+    };
+  } catch (error) {
+    console.error(error);
+    throw new LlmError('config_error', []);
+  }
 }
 
 function record(
@@ -43,8 +56,8 @@ function record(
 }
 
 /** The code goes to llm_calls; the message is what tells an operator what to fix. */
-function providerFailure(error: unknown) {
-  const code = providerErrorCode(error);
+function providerFailure(adapter: (typeof ADAPTERS)['anthropic' | 'deepseek'], error: unknown) {
+  const code = adapter.providerErrorCode(error);
   console.error(`LLM call failed (${code}):`, error instanceof Error ? error.message : error);
   return code;
 }
@@ -67,7 +80,7 @@ function parseOutput<Schema extends z.ZodType>(turn: TurnResult, schema: Schema)
 export async function generateStructured<Schema extends z.ZodType>(
   options: CallOptions & { system: string; input: string; images?: LlmImage[]; schema: Schema },
 ): Promise<{ data: z.output<Schema>; model: string; records: LlmCallRecord[] }> {
-  const { model, effort, maxTokens } = settings(options);
+  const { adapter, model, effort, maxTokens } = settings(options);
   const { system, input, images, schema } = options;
   const records: LlmCallRecord[] = [];
   let code = 'provider_error';
@@ -76,10 +89,10 @@ export async function generateStructured<Schema extends z.ZodType>(
     const started = Date.now();
     let turn: TurnResult;
     try {
-      turn = await structuredTurn({ model, effort, maxTokens, system, input, images, schema });
+      turn = await adapter.structuredTurn({ model, effort, maxTokens, system, input, images, schema });
     } catch (error) {
       // The SDK already retries transient failures, so this one is final.
-      code = providerFailure(error);
+      code = providerFailure(adapter, error);
       records.push(await logCall(record(options, model, started, undefined, code), options.log));
       break;
     }
@@ -134,7 +147,7 @@ export async function runToolLoop(
     maxIterations: number;
   },
 ) {
-  const { model, effort, maxTokens } = settings(options);
+  const { adapter, model, effort, maxTokens } = settings(options);
   const { system, tools, maxIterations } = options;
   const messages = [...options.messages];
   const records: LlmCallRecord[] = [];
@@ -144,9 +157,9 @@ export async function runToolLoop(
     const started = Date.now();
     let turn: TurnResult;
     try {
-      turn = await toolTurn({ model, effort, maxTokens, system, messages, tools });
+      turn = await adapter.toolTurn({ model, effort, maxTokens, system, messages, tools });
     } catch (error) {
-      const code = providerFailure(error);
+      const code = providerFailure(adapter, error);
       records.push(await logCall(record(options, model, started, undefined, code), options.log));
       throw new LlmError(code, records);
     }

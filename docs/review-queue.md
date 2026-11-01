@@ -13,6 +13,10 @@ The run ended here, as the run rules require. Nothing else blocked it.
 
 **To resume:** set the key in `.env.local`, then use the Continue prompt in `docs/session-b-report.md`.
 
+## STOP: DEEPSEEK_API_KEY rejected (1 Nov)
+
+`GET /models` and a real extraction both return **401 Authentication Fails** for the key in `.env.local` (ends `36fe`, length 39). The value is clean: `sk-` prefix, no quotes or spaces, read the same by dotenv. `DEEPSEEK_API_KEY` appears once in the file. Standard DeepSeek keys are usually shorter, so check it was copied whole, or create a new one. Step 3's live check and `eval:smoke` have not run.
+
 ## Run checklist
 
 - [x] Part 1 — D19, D20, D22 in the decision log (already in `20311b2`, nothing to do)
@@ -53,9 +57,15 @@ The run ended here, as the run rules require. Nothing else blocked it.
 
 ## Known issues to fix when work resumes
 
-- A local failure such as a missing key is logged only as `provider_error`, which hides the cause. `lib/llm/index.ts` should also print the underlying error. I hit this during the stop.
+- ~~A local failure is logged only as `provider_error`.~~ Fixed: distinct codes in `lib/llm/errors.ts`, and the underlying message is printed.
 - D13 is not proven yet. Fixture 09 was renamed to fall under 0.95, but `lib/matching/similarity.ts` does not exist, so the required sanity test is still to come.
 - The first real call may still reveal problems the offline tests cannot: the schema is checked against the documented limits, but the API has never seen it.
+
+17. **DeepSeek structured output uses strict tool calling** (`DEEPSEEK.structuredMethod`), as the docs confirm it. It needs the `/beta` URL and `thinking: disabled`, because a named `tool_choice` returns 400 in thinking mode. So `effort` has no effect on extraction in this mode. `json_object` is implemented too, keeps thinking on, and is one config value away.
+18. **`deepseek-flash` is the default for every DeepSeek purpose.** `deepseek-v4-pro` is reachable with `--model`; the eval decides (D23).
+19. **DeepSeek cost is a ceiling:** the peak rate, ignoring cache hits. Off-peak is half.
+20. **`missing_api_key` for Anthropic checks the two env vars,** so an `ant` CLI profile alone would read as missing. This project configures keys through env only.
+21. **A 402 from DeepSeek has its own code,** `insufficient_balance`, and 400/422 have `bad_request`, beyond the list you asked for. Each points at a different fix.
 
 ## Doc conflicts found (nothing changed)
 

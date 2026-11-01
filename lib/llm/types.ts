@@ -37,7 +37,7 @@ export type CallOptions = {
   effort?: Effort;
 };
 
-export type TurnRequest = { model: string; effort: Effort; maxTokens: number; system: string };
+export type TurnRequest = { model: string; effort?: Effort; maxTokens: number; system: string };
 
 export type TurnResult = {
   blocks: LlmBlock[];

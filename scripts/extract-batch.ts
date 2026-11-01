@@ -98,7 +98,8 @@ async function main() {
       vision: values.vision,
     });
     const records = result?.records ?? [];
-    console.log(`${docId}: ${status} (${records.length} call${records.length === 1 ? '' : 's'})`);
+    const failure = result && !result.ok ? `, ${result.errorCode}` : '';
+    console.log(`${docId}: ${status} (${records.length} call${records.length === 1 ? '' : 's'}${failure})`);
     if (fields) for (const row of fieldRows(docId, fields)) lines.push(JSON.stringify(row));
     lines.push(
       JSON.stringify({

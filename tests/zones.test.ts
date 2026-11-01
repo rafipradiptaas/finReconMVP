@@ -23,11 +23,11 @@ const ALL = ['app', 'lib', 'scripts', 'components'].flatMap((dir) => {
 });
 
 describe('zone boundaries', () => {
-  it('@anthropic-ai/sdk is imported only inside lib/llm/providers (D19)', () => {
+  it('provider SDKs are imported only inside lib/llm/providers (D19, D23)', () => {
     const offenders = ALL.filter(
       (path) =>
         !path.startsWith('lib/llm/providers/') &&
-        importsOf(path).some((name) => name.startsWith('@anthropic-ai/')),
+        importsOf(path).some((name) => /^(@anthropic-ai\/|openai($|\/))/.test(name)),
     );
     expect(offenders).toEqual([]);
   });
