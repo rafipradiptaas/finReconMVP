@@ -20,10 +20,10 @@
 | Errors | 400, 401, 402 (balance), 422, 429, 500, 503 |
 | Price, per MTok | Flash: $0.30 in / $1.20 out at peak, half off-peak. V4 Pro: $1.32 in / $3.96 out at peak, half off-peak. Peak = 01:00–04:00 and 06:00–10:00 UTC, Mon–Fri |
 
-## Not confirmed
+## Confirmed live (2026-11-01)
 
-- `GET https://api.deepseek.com/models` returned **401** on 2026-11-01: the key in `.env.local` was rejected. The model IDs above come from the docs only.
-- Whether `strict` accepts `{"type": "null"}` inside `anyOf`, which our nullable fields use. If it does not, set `DEEPSEEK.structuredMethod` to `json_object` in `lib/llm/config.ts`.
+- `GET https://api.deepseek.com/models` lists `deepseek-flash` (text, image input) and `deepseek-v4-pro` (text input), both with effort levels `low`, `high`, `max`.
+- `strict` accepts `{"type": "null"}` inside `anyOf`, even though the docs do not list it: our nullable invoice schema worked on `deepseek-flash` with thinking disabled.
 
 ---
 

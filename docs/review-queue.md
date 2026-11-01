@@ -13,9 +13,17 @@ The run ended here, as the run rules require. Nothing else blocked it.
 
 **To resume:** set the key in `.env.local`, then use the Continue prompt in `docs/session-b-report.md`.
 
-## STOP: DEEPSEEK_API_KEY rejected (1 Nov)
+## Step 3 live check (1 Nov)
 
-`GET /models` and a real extraction both return **401 Authentication Fails** for the key in `.env.local` (ends `36fe`, length 39). The value is clean: `sk-` prefix, no quotes or spaces, read the same by dotenv. `DEEPSEEK_API_KEY` appears once in the file. Standard DeepSeek keys are usually shorter, so check it was copied whole, or create a new one. Step 3's live check and `eval:smoke` have not run.
+Waiting for your review before Phase 3 steps 5–6 start.
+
+- `npm run extract:batch` on fixtures 01, 04 and 05: 3 calls, no retries. Statuses as expected: EXTRACTED, NEEDS_CORRECTION, EXTRACTED.
+- `npm run eval:smoke` on ev01–ev10: critical-field accuracy 50/50, wrong while verified 0, passed. It scores the 5 critical fields only, on synthetic documents, and does not print cost.
+- `deepseek-flash`, strict tool calling, thinking off.
+
+**Found for Phase 4:** the extractor returns `Bank BCA` and `Bank Mandiri`, while master data says `BCA` and `Mandiri`. `grounded` passes, but the bank veto needs a name normalizer that strips "Bank", or every invoice would be `VETO_BANK_MISMATCH`.
+
+**Your call:** a non-PKP invoice with no tax line gets `tax_amount` null, confidence low, `unverified` (fixture 05). The document still reaches EXTRACTED, and `FULL_MATCH` review ignores it, but on `PARTIAL_MATCH`/`NO_MATCH` that null would become a required tick. That follows the D5 rule as written.
 
 ## Run checklist
 
@@ -59,7 +67,6 @@ The run ended here, as the run rules require. Nothing else blocked it.
 
 - ~~A local failure is logged only as `provider_error`.~~ Fixed: distinct codes in `lib/llm/errors.ts`, and the underlying message is printed.
 - D13 is not proven yet. Fixture 09 was renamed to fall under 0.95, but `lib/matching/similarity.ts` does not exist, so the required sanity test is still to come.
-- The first real call may still reveal problems the offline tests cannot: the schema is checked against the documented limits, but the API has never seen it.
 
 17. **DeepSeek structured output uses strict tool calling** (`DEEPSEEK.structuredMethod`), as the docs confirm it. It needs the `/beta` URL and `thinking: disabled`, because a named `tool_choice` returns 400 in thinking mode. So `effort` has no effect on extraction in this mode. `json_object` is implemented too, keeps thinking on, and is one config value away.
 18. **`deepseek-flash` is the default for every DeepSeek purpose.** `deepseek-v4-pro` is reachable with `--model`; the eval decides (D23).
