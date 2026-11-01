@@ -4,11 +4,13 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { DocumentReview } from '@/components/documents/document-review';
 import { RematchButton } from '@/components/documents/rematch-button';
+import { FollowupPanel, type Followup } from '@/components/followups/followup-panel';
 import { MatchStatusBadge } from '@/components/matches/match-status-badge';
 import { ReviewActions } from '@/components/matches/review-actions';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getSessionContext } from '@/lib/auth';
+import { isFollowupEligible } from '@/lib/followup-checks';
 import { buildComparisons, correctionLock } from '@/lib/review';
 import { loadReview } from '@/lib/server/review-context';
 import { createClient } from '@/lib/supabase/server';
@@ -38,11 +40,11 @@ export default async function MatchDetailPage({ params }: PageProps<'/matches/[i
   if (!review?.document) notFound();
   const { match, reviewMatch, invoice, document } = review;
 
-  const [{ data: vendor }, { data: po }, { data: notes }, { data: signed }] = await Promise.all([
+  const [{ data: vendor }, { data: po }, { data: notes }, { data: signed }, { data: followups }] = await Promise.all([
     invoice.vendor_id
       ? supabase
           .from('vendors')
-          .select('vendor_name, npwp, bank_name, bank_account_number, bank_account_holder')
+          .select('vendor_name, npwp, bank_name, bank_account_number, bank_account_holder, contact_email')
           .eq('id', invoice.vendor_id)
           .maybeSingle()
       : { data: null },
@@ -59,6 +61,14 @@ export default async function MatchDetailPage({ params }: PageProps<'/matches/[i
       .eq('match_id', id)
       .order('created_at', { ascending: false }),
     supabase.storage.from('documents').createSignedUrl(document.storage_path, SIGNED_URL_SECONDS),
+    supabase
+      .from('followups')
+      .select(
+        'id, status, recipient, subject, body, ai_generated_body, edited, sent_at, provider_message_id, followup_replies(id, body, proposed_po_number, proposed_po_valid, fraud_flag, fraud_reasons, created_at)',
+      )
+      .eq('match_id', id)
+      .order('created_at', { ascending: false })
+      .order('created_at', { referencedTable: 'followup_replies' }),
   ]);
 
   const breakdown = reviewMatch.score_breakdown;
@@ -161,6 +171,16 @@ export default async function MatchDetailPage({ params }: PageProps<'/matches/[i
           duplicateDecided={review.duplicateDecided}
           matchingFailed={review.matchingFailed}
         />
+
+        {isFollowupEligible(match) && (
+          <FollowupPanel
+            matchId={match.id}
+            documentId={document.id}
+            contactEmail={vendor?.contact_email ?? null}
+            canAcceptPo={!correctionLock(match)}
+            followups={(followups ?? []) as unknown as Followup[]}
+          />
+        )}
 
         {notes && notes.length > 0 && (
           <ul className="space-y-2 text-sm">

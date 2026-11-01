@@ -53,6 +53,20 @@ describe('zone boundaries', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('the AI zone cannot reach the service-role client or the email module (D8, D21)', () => {
+    const ai = ALL.filter((path) => /^lib\/(agent|chatbot)\//.test(path));
+    const offenders = ai.filter((path) => importsOf(path).some((name) => /supabase\/admin|lib\/email/.test(name)));
+    expect(ai.length).toBeGreaterThan(0);
+    expect(offenders).toEqual([]);
+  });
+
+  it('only lib/server/followups.ts sends email', () => {
+    const offenders = ALL.filter(
+      (path) => !path.startsWith('lib/email/') && path !== 'lib/server/followups.ts' && importsOf(path).includes('@/lib/email'),
+    );
+    expect(offenders).toEqual([]);
+  });
+
   it('the vision path is not reachable from the app (product doc 6.1)', () => {
     const appCode = ALL.filter((path) => !path.startsWith('scripts/') && path !== 'lib/llm/extract-invoice-vision.ts');
     const offenders = appCode.filter((path) => importsOf(path).some((name) => name.includes('extract-invoice-vision')));

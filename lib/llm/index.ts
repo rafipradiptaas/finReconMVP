@@ -145,6 +145,8 @@ export async function runToolLoop(
     messages: LlmMessage[];
     tools: LlmTool[];
     maxIterations: number;
+    /** Ends the loop once one of these tools has run successfully. */
+    stopAfterTools?: string[];
   },
 ) {
   const { adapter, model, effort, maxTokens } = settings(options);
@@ -175,6 +177,11 @@ export async function runToolLoop(
     // Every result of a turn goes back in one message.
     const results = await Promise.all(calls.map((call) => runTool(tools, call)));
     messages.push({ role: 'user', content: results });
+
+    const succeeded = calls.filter((_, index) => !(results[index] as { isError?: boolean }).isError);
+    if (succeeded.some((call) => options.stopAfterTools?.includes(call.name))) {
+      return { text: '', messages, records, toolsCalled, stoppedAtCap: false };
+    }
   }
   return { text: '', messages, records, toolsCalled, stoppedAtCap: true };
 }

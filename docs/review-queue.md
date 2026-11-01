@@ -106,6 +106,8 @@ Waiting for your review before Phase 3 steps 5–6 start.
 40. **`tests/e2e/fixtures.spec.ts` merges both of last night's scripts** (`e2e.mjs`: viewer, hover, correction; `fixtures.mjs`: fixture outcomes, duplicates). It uses the installed Chrome, not a downloaded browser.
 41. **Demo Corp, one e2e run:** fixture 06 was uploaded, flagged, then removed. Its audit rows stay (append-only), along with two users: `E2E admin` and `E2E ap_staff`. The history import was run by `E2E admin`: I did not use or reset the demo users' passwords.
 
+**"The destination stream closed early" is not ours.** The message is React's own (`react-dom-server`), raised when the socket closes during a server render. I reproduced it with the same digest, `2023578098`, by aborting requests to `/audit-log` mid-render with a plain `fetch`. In the e2e run, a test navigated away while `router.refresh()` from the previous step was still rendering. Nothing is lost: it is the client leaving. Nothing changed.
+
 **Decisions I took (Phase 5):**
 
 42. **Approve is refused (409) when a twin is already APPROVED or PAID.** This one is beyond the spec. D18.3 only vetoes at matching time, so two pending twins could both be approved once the warning cleared: a double payment. `validateDecision` applies the duplicate veto's own condition at decision time. Reject stays available.
@@ -126,6 +128,42 @@ Waiting for your review before Phase 3 steps 5–6 start.
 
 - ~~Correction can clear a veto.~~ Resolved by D25: 409 `VETO_LOCKED`.
 - **A pending match is not rechecked at approval, apart from duplicates.** A vendor suspended, or a bank account changed, after matching still approves. D18.5 says re-evaluation means uploading again, so nothing changed.
+
+**Decisions I took (Phase 7):**
+
+55. **Resend is called with `fetch`,** not the SDK, for one plain-text POST. It has only been tested with a mocked `fetch`, because `EMAIL_MODE` stays `dry_run`. `docs/llm-context` has no Resend page, so the request shape is from memory: check it before the first real send.
+56. **The send route claims the row first** (`DRAFT → SENT`, conditional), then sends, so a double click cannot send twice. A failed send puts it back to `DRAFT`, the one backward step, because nothing was sent.
+57. **Not eligible returns 409, no contact returns 422,** an agent failure returns 502. No row is written unless `save_draft` ran.
+58. **An open draft is returned instead of calling the model again.** One draft per match at a time.
+59. **`get_followup_context` gives the invoice's bank details, not master's,** so a draft cannot leak the account on file to whoever reads it.
+60. **`propose_po_number` also checks the number is in the reply,** beyond the spec's "exists, same vendor". A model cannot invent a valid-looking PO.
+61. **Accepting a PO sends `acceptedReplyId` to the correction route,** which re-checks the proposal and adds a `po_proposal_accepted` audit row, as product doc 13 requires. D25 applies: a veto hides Terima, and the accepted number is usually not in the PDF, so it becomes a required tick.
+62. **A long number in a reply warns even if it is a phone number.** The spec says any 8–20 digit sequence, and a warning only costs a look. Dots do not group digits, or `15.750.000` would warn; ISO dates are skipped; the vendor's own account and NPWP do not count.
+63. **The reply wrapper replaces `<` and `>` in the vendor's text,** so a reply cannot close `</vendor_reply>`.
+
+## Review: lib/agent/tools.ts and the send route (replaces STOP after Phase 7)
+
+**Read, in this order:**
+
+1. `lib/agent/tools.ts`, all of it. Short on purpose.
+2. `lib/server/followups.ts`: `sendFollowup`, then `addReply`.
+3. `app/api/followups/[id]/send/route.ts`: it takes no body, and passes only the id.
+
+**Why it is safe:**
+
+| Claim | Where it holds | Proved by |
+|---|---|---|
+| The agent cannot send email | No send tool. `lib/agent` cannot import `lib/email`, and only `lib/server/followups.ts` does | `tests/zones.test.ts`, "has exactly these tools", "saves a draft, stops after save_draft, and sends nothing" |
+| The agent cannot change vendor, bank, invoice, match or status | Its tools are one read, one draft callback, and two that only fill an in-memory findings object. `lib/agent` cannot import `lib/supabase/admin`, and its client is read-only in the database (D21) | "a bank change request is flagged, and changes nothing", "an injected reply changes nothing, even when the model obeys it" (whole rows compared before and after, scripted model calling `approve_invoice`, `update_vendor`, `send_email`) |
+| Recipient is always master data | `sendFollowup` reads `vendors.contact_email` at send time. The route takes no body, PATCH is a strict schema, and the model never sees an address | "sends to the master contact, whatever the invoice or the draft says", "re-reads the address at send time", "refuses any other field, the recipient above all", "never sees a contact address" |
+| The model cannot reach another record | No tool takes an id. `matchId` and `organizationId` are bound by the server, and reads use the user client under RLS | "never sees a contact address, and no tool takes an id", "cannot read another organization, even with the right match id" (a real org B sign-in) |
+| It cannot run away | `MAX_AGENT_ITERATIONS` = 6, and the draft loop stops after `save_draft` | "the iteration cap stops a model that keeps calling tools" |
+| An email goes out once, only by a person | Conditional claim on `DRAFT` | "cannot send twice", "a concurrent double click sends once" |
+| An LLM failure changes nothing | Reply detection is deterministic and runs first | "an LLM failure blocks nothing and writes nothing", "keeps the rule-based warning when the model is down" |
+
+These tests are in `tests/agent/followups.integration.test.ts`. They use the real tools, loop, routes and database, with a scripted model. Live DeepSeek runs are in the e2e, in the fixture organization.
+
+**What is not proved:** that the model writes a good email, or resists a prompt injection. Safety here does not depend on that: the test scripts the model to obey the injection, and nothing changes. A bad draft is caught by the person who reads it before clicking Kirim.
 
 ## Doc conflicts found (nothing changed)
 

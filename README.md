@@ -118,6 +118,6 @@ Rencana v3 (D14). Vercel staging menunggu perintah manual di bawah.
 - [x] **Fase 4** — matching engine (test-first)
 - [x] **Fase 5** — review panel, gesekan sesuai risiko, SoD, PAID, narasi, audit log (checkpoint demo BizDev)
 - [ ] Fase 6 — eval harness (checkpoint portofolio)
-- [ ] Fase 7 — agent follow-up
+- [x] **Fase 7** — agent follow-up
 - [ ] Fase 8 — baseline anomali & chatbot
 - [ ] Fase 9 — polish & demo

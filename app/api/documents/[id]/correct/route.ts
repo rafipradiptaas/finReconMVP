@@ -17,7 +17,7 @@ import { fail, ok, withWriteContext } from '@/lib/server/write-context';
 import type { Json } from '@/types/database.types';
 import { ROLES } from '@/types/domain';
 
-const body = z.object({ corrections: correctionsSchema });
+const body = z.object({ corrections: correctionsSchema, acceptedReplyId: z.uuid().optional() });
 
 // Every role may correct a field (product doc section 3).
 export const POST = withWriteContext(
@@ -29,6 +29,7 @@ export const POST = withWriteContext(
       return fail(400, 'VALIDATION_ERROR', 'Koreksi tidak valid.', parsed.error?.issues);
     }
     const corrections = parsed.data.corrections as Corrections;
+    const { acceptedReplyId } = parsed.data;
 
     const { data: document, error: documentError } = await ctx.db
       .from('documents')
@@ -60,6 +61,20 @@ export const POST = withWriteContext(
 
     const lock = correctionLock(invoice.matches);
     if (lock) return fail(409, lock.code, lock.message);
+
+    // Accepting a vendor's proposed PO is this same correction, plus its own audit row.
+    if (acceptedReplyId) {
+      const { data: reply, error: replyError } = await ctx.db
+        .from('followup_replies')
+        .select('proposed_po_number, proposed_po_valid')
+        .eq('id', acceptedReplyId)
+        .eq('organization_id', ctx.organizationId)
+        .maybeSingle();
+      if (replyError) throw replyError;
+      if (!reply?.proposed_po_valid || reply.proposed_po_number !== corrections.po_number) {
+        return fail(400, 'VALIDATION_ERROR', 'Usulan nomor PO tidak valid.');
+      }
+    }
 
     const before = extraction.fields as unknown as CheckedInvoice;
     const text = textFromItems(extraction.text_items as unknown as TextItem[]);
@@ -99,6 +114,18 @@ export const POST = withWriteContext(
       })),
       ctx,
     );
+
+    if (acceptedReplyId) {
+      await logAudit(
+        {
+          entityType: 'document',
+          entityId: id,
+          action: 'po_proposal_accepted',
+          newValue: { reply_id: acceptedReplyId, po_number: corrections.po_number },
+        },
+        ctx,
+      );
+    }
 
     if (status !== document.status) {
       await setDocumentStatus(ctx, id, document.status, status);
