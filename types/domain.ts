@@ -88,6 +88,14 @@ export function canTransitionReviewStatus(from: ReviewStatus, to: ReviewStatus):
   return REVIEW_STATUS_TRANSITIONS[from].includes(to);
 }
 
+/** documents.status_message of an EXTRACTED document whose matching threw. */
+export const MATCHING_FAILED_PREFIX = 'MATCHING_FAILED:';
+export const MATCHING_FAILED_LABEL = 'Matching gagal — jalankan ulang';
+
+export function isMatchingFailed(statusMessage: string | null | undefined): boolean {
+  return statusMessage?.startsWith(MATCHING_FAILED_PREFIX) ?? false;
+}
+
 /** Indonesian labels for the UI. Code stays English; labels do not. */
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Admin',

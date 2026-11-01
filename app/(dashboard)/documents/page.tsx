@@ -3,6 +3,7 @@ import { DocumentStatusBadge } from '@/components/documents/document-status-badg
 import { UploadDropzone } from '@/components/documents/upload-dropzone';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { createClient } from '@/lib/supabase/server';
+import { isMatchingFailed, MATCHING_FAILED_LABEL } from '@/types/domain';
 
 export default async function DocumentsPage() {
   const supabase = await createClient();
@@ -47,7 +48,11 @@ export default async function DocumentsPage() {
                 <TableCell>
                   <DocumentStatusBadge status={document.status} />
                 </TableCell>
-                <TableCell className="whitespace-normal">{document.status_message ?? '-'}</TableCell>
+                <TableCell className="whitespace-normal">
+                  {isMatchingFailed(document.status_message)
+                    ? MATCHING_FAILED_LABEL
+                    : (document.status_message ?? '-')}
+                </TableCell>
                 <TableCell>{new Date(document.created_at).toLocaleString('id-ID')}</TableCell>
               </TableRow>
             ))}

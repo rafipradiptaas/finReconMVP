@@ -10,7 +10,7 @@ import {
   type TextItem,
 } from '@/lib/extraction-checks';
 import { correctionsSchema } from '@/lib/extraction-checks/corrections';
-import { matchDocument } from '@/lib/server/match-document';
+import { tryMatchDocument } from '@/lib/server/match-document';
 import { setDocumentStatus } from '@/lib/server/process-document';
 import { fail, ok, withWriteContext } from '@/lib/server/write-context';
 import type { Json } from '@/types/database.types';
@@ -106,7 +106,7 @@ export const POST = withWriteContext(
       await setDocumentStatus(ctx, id, document.status, status);
     }
     // A correction can change the outcome, so every EXTRACTED document is matched again.
-    if (status === 'EXTRACTED') await matchDocument(ctx, id);
-    return ok({ status });
+    const matchingFailed = status === 'EXTRACTED' && !(await tryMatchDocument(ctx, id));
+    return ok({ status, matchingFailed });
   },
 );

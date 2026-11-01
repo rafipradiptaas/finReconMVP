@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "db:types": "npx supabase gen types typescript --project-id gggnegmcknqxjwcxoqdp --schema public > types/database.types.ts.tmp && mv types/database.types.ts.tmp types/database.types.ts",
     "extract:batch": "tsx scripts/extract-batch.ts",
     "eval:smoke": "tsx scripts/eval-smoke.ts"
@@ -36,6 +37,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24.13.3",
     "@types/papaparse": "^5.5.2",

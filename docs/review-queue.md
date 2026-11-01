@@ -90,6 +90,22 @@ Waiting for your review before Phase 3 steps 5–6 start.
 33. **`/matches` hides imported history** and shows `-` under Review for `REJECTED`, which has no review path. Its links go to `/documents/[id]` until the Phase 5 review panel exists.
 34. **`matchDocument` pages through vendors, POs and history,** because PostgREST caps a response at 1000 rows and a short read could silently miss a duplicate.
 
+## Session C
+
+**Accepted for the MVP, recorded here:**
+- **Line-item correction is deferred** to the roadmap. Scalar fields stay editable; a misread line means uploading again (see Decision 24).
+- **The 4 MB upload limit is accepted** for the MVP. Roadmap: direct-to-Storage upload from the browser.
+
+**Decisions I took (phase 5 prep):**
+
+35. **Rematch recovers a failure only.** D18.5 says no re-run button, so `POST /api/documents/[id]/rematch` runs matching only for an EXTRACTED document with no match, or one marked `MATCHING_FAILED`. Anything else returns `{ rematched: false }` and writes nothing. Re-evaluation after a vendor is verified is still "upload again".
+36. **History rows are keyed on vendor + normalized number + invoice date.** The fixture's two duplicates (H-V001-001, H-V004-001) differ only in date, so all 138 rows import, and a re-import adds nothing.
+37. **History matches carry `status = FULL_MATCH`, `score = null`.** `status` is required, and the rows were paid. `paid_marked_by` stays null: nobody here marked them.
+38. **Import Histori sits on the Purchase Order page,** beside Import PO, admin only.
+39. **The e2e run needs users, and they are permanent:** `e2e-<role>-<org>@finrecon.test`, in the target organization. A user with audit rows cannot be deleted (D21). The four `e2e-…`/`fx-…` users from Session B are still in the fixture organization for the same reason: the old script's `deleteUser` failed without saying so.
+40. **`tests/e2e/fixtures.spec.ts` merges both of last night's scripts** (`e2e.mjs`: viewer, hover, correction; `fixtures.mjs`: fixture outcomes, duplicates). It uses the installed Chrome, not a downloaded browser.
+41. **Demo Corp, one e2e run:** fixture 06 was uploaded, flagged, then removed. Its audit rows stay (append-only), along with two users: `E2E admin` and `E2E ap_staff`. The history import was run by `E2E admin`, because I do not have the demo passwords and did not reset them.
+
 ## Doc conflicts found (nothing changed)
 
 - D10 still says "Loop: Anthropic SDK tool use, own loop in lib/agent/". D19 refines this to `runToolLoop`; CLAUDE.md, product-doc and dev-guide already say so. The D10 line was left as written because the decision log is a record.

@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DocumentReview } from '@/components/documents/document-review';
 import { DocumentStatusBadge } from '@/components/documents/document-status-badge';
+import { RematchButton } from '@/components/documents/rematch-button';
 import type { CheckedInvoice } from '@/lib/extraction-checks';
 import { createClient } from '@/lib/supabase/server';
+import { isMatchingFailed } from '@/types/domain';
 
 const SIGNED_URL_SECONDS = 600;
 
@@ -28,6 +30,8 @@ export default async function DocumentDetailPage({ params }: PageProps<'/documen
   const correctable = document.status === 'NEEDS_CORRECTION' || document.status === 'EXTRACTED';
   const reviewStatus = invoice?.matches?.review_status;
   const decided = Boolean(reviewStatus && reviewStatus !== 'PENDING_REVIEW');
+  const matchingFailed =
+    isMatchingFailed(document.status_message) || (document.status === 'EXTRACTED' && !reviewStatus);
 
   return (
     <section className="space-y-4">
@@ -38,8 +42,12 @@ export default async function DocumentDetailPage({ params }: PageProps<'/documen
         <h1 className="text-xl font-semibold">{document.original_filename}</h1>
         <DocumentStatusBadge status={document.status} />
       </div>
-      {document.status_message && (
-        <p className="text-muted-foreground text-sm">{document.status_message}</p>
+      {matchingFailed ? (
+        <RematchButton documentId={document.id} />
+      ) : (
+        document.status_message && (
+          <p className="text-muted-foreground text-sm">{document.status_message}</p>
+        )
       )}
       {document.status === 'NEEDS_CORRECTION' && (
         <p className="text-sm">

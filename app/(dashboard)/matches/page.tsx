@@ -1,11 +1,13 @@
 import { TriangleAlert } from 'lucide-react';
 import Link from 'next/link';
+import { RematchButton } from '@/components/documents/rematch-button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { pendingDuplicateInvoices } from '@/lib/matching';
 import { createClient } from '@/lib/supabase/server';
 import {
   MATCH_STATUS_LABELS,
+  MATCHING_FAILED_PREFIX,
   REVIEW_STATUS_LABELS,
   VETO_LABELS,
   type MatchStatus,
@@ -20,13 +22,24 @@ const VARIANTS: Record<MatchStatus, 'default' | 'secondary' | 'destructive' | 'o
 
 export default async function MatchesPage() {
   const supabase = await createClient();
-  const { data: matches, error } = await supabase
-    .from('matches')
-    .select(
-      'id, status, veto_code, score, anomaly_flag, anomaly_reason, review_status, invoices!inner(id, document_id, vendor_id, vendor_name, invoice_number, invoice_number_normalized, total_amount, imported_history)',
-    )
-    .eq('invoices.imported_history', false)
-    .order('created_at', { ascending: false });
+  const [{ data: matchRows, error }, { data: failed }] = await Promise.all([
+    supabase
+      .from('matches')
+      .select(
+        'id, status, veto_code, score, anomaly_flag, anomaly_reason, review_status, invoices!inner(id, document_id, vendor_id, vendor_name, invoice_number, invoice_number_normalized, total_amount, imported_history)',
+      )
+      .eq('invoices.imported_history', false)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('documents')
+      .select('id, original_filename')
+      .like('status_message', `${MATCHING_FAILED_PREFIX}%`)
+      .order('created_at', { ascending: false }),
+  ]);
+
+  // A failed re-match leaves the old row behind. It no longer describes the invoice.
+  const failedIds = new Set(failed?.map(({ id }) => id));
+  const matches = matchRows?.filter(({ invoices }) => !failedIds.has(invoices.document_id!));
 
   const duplicates = pendingDuplicateInvoices(
     (matches ?? []).map(({ review_status, invoices }) => ({
@@ -46,7 +59,15 @@ export default async function MatchesPage() {
           Gagal memuat hasil pencocokan.
         </p>
       )}
-      {matches?.length === 0 && (
+      {failed?.map((document) => (
+        <div key={document.id} className="flex items-center gap-3 rounded-lg border p-3">
+          <Link href={`/documents/${document.id}`} className="text-sm underline underline-offset-4">
+            {document.original_filename}
+          </Link>
+          <RematchButton documentId={document.id} />
+        </div>
+      ))}
+      {matches?.length === 0 && failed?.length === 0 && (
         <p className="text-muted-foreground text-sm">
           Belum ada hasil. Invoice yang terekstraksi otomatis dicocokkan.
         </p>

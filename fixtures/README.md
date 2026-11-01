@@ -28,7 +28,7 @@ python3 -m venv .venv && .venv/bin/pip install -r eval/requirements.txt
 | 03_veto_bank_mismatch_V004 | #4 rekening beda dari master | REJECTED / VETO_BANK_MISMATCH |
 | 04_needs_correction_no_invoice_number_V005 | #7 nomor invoice tidak ada → koreksi manual | NEEDS_CORRECTION → FULL_MATCH |
 | 05_full_match_vendor_needs_review_V002 | indikator vendor "Perlu Review" (tanpa PPN) | FULL_MATCH |
-| 06_anomaly_8x_history_V009 | #6 nominal ~9× rata-rata historis | FULL_MATCH + anomaly_flag (flag butuh histori; di aplikasi histori baru masuk lewat import Fase 8) |
+| 06_anomaly_8x_history_V009 | #6 nominal ~9× rata-rata historis | FULL_MATCH + anomaly_flag (flag butuh histori: impor `invoice_history.csv` lewat tombol Import Histori di halaman Purchase Order) |
 | 07_veto_vendor_unverified_V006 | vendor belum verified | REJECTED / VETO_VENDOR_NOT_VERIFIED |
 | 08_no_match_unknown_po_V010 | nomor PO tidak ada di sistem | NO_MATCH |
 | 09_veto_vendor_not_found_fake_vendor | vendor mirip nama tapi NPWP lain (vendor palsu). D13: similarity Jaro-Winkler < 0,95 ke semua vendor master, dan NPWP tidak ada di master | REJECTED / VETO_VENDOR_NOT_FOUND |

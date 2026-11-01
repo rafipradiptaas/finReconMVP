@@ -28,7 +28,10 @@ export default async function PurchaseOrdersPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Purchase Order</h1>
         {session?.role === 'admin' && (
-          <CsvImportDialog title="Import PO" endpoint="/api/purchase-orders/import" />
+          <div className="flex gap-2">
+            <CsvImportDialog title="Import Histori" endpoint="/api/history/import" />
+            <CsvImportDialog title="Import PO" endpoint="/api/purchase-orders/import" />
+          </div>
         )}
       </div>
 

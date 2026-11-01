@@ -10,7 +10,7 @@ import {
 } from '@/lib/extraction-checks';
 import { extractInvoice } from '@/lib/llm/extract-invoice';
 import { llmCallsWriter } from '@/lib/llm/log-call';
-import { matchDocument } from '@/lib/server/match-document';
+import { tryMatchDocument } from '@/lib/server/match-document';
 import type { WriteContext } from '@/lib/server/write-context';
 import type { Json } from '@/types/database.types';
 import type { DocumentStatus } from '@/types/domain';
@@ -160,6 +160,6 @@ export async function processDocument(
     return { documentId, status: 'EXTRACTION_FAILED' as DocumentStatus };
   }
 
-  if (status === 'EXTRACTED') await matchDocument(ctx, documentId);
-  return { documentId, status };
+  const matchingFailed = status === 'EXTRACTED' && !(await tryMatchDocument(ctx, documentId));
+  return { documentId, status, matchingFailed };
 }

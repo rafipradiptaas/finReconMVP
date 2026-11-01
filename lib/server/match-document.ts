@@ -8,6 +8,7 @@ import {
 } from '@/lib/matching';
 import type { WriteContext } from '@/lib/server/write-context';
 import type { Json } from '@/types/database.types';
+import { MATCHING_FAILED_PREFIX } from '@/types/domain';
 
 const PAGE_SIZE = 1000;
 
@@ -17,7 +18,7 @@ const PAGE_SIZE = 1000;
  * ponytail: loads the whole organization per match. Filter history by vendor if
  * matching gets slow.
  */
-async function readAll<Row>(
+export async function readAll<Row>(
   page: (from: number, to: number) => PromiseLike<{ data: Row[] | null; error: unknown }>,
 ): Promise<Row[]> {
   const rows: Row[] = [];
@@ -134,4 +135,59 @@ export async function matchDocument(ctx: WriteContext, documentId: string) {
     ctx,
   );
   return result;
+}
+
+function failureCode(error: unknown) {
+  const { code, name } = (error ?? {}) as { code?: unknown; name?: unknown };
+  return String(code || name || 'UNKNOWN');
+}
+
+async function recordMatchingFailure(ctx: WriteContext, documentId: string, error: unknown) {
+  const statusMessage = `${MATCHING_FAILED_PREFIX} ${failureCode(error)}`;
+  try {
+    const { error: updateError } = await ctx.db
+      .from('documents')
+      .update({ status_message: statusMessage })
+      .eq('id', documentId)
+      .eq('organization_id', ctx.organizationId);
+    if (updateError) throw updateError;
+    await logAudit(
+      {
+        entityType: 'document',
+        entityId: documentId,
+        action: 'matching_failed',
+        newValue: {
+          status_message: statusMessage,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      },
+      ctx,
+    );
+  } catch (failure) {
+    // The database is probably down. No match row is left, so rematch still works.
+    console.error(failure);
+  }
+}
+
+/**
+ * A finished extraction stands even when matching throws: the document stays
+ * EXTRACTED, marked, and POST /api/documents/[id]/rematch runs it again.
+ * Returns whether matching completed.
+ */
+export async function tryMatchDocument(ctx: WriteContext, documentId: string): Promise<boolean> {
+  try {
+    await matchDocument(ctx, documentId);
+    const { error } = await ctx.db
+      .from('documents')
+      .update({ status_message: null })
+      .eq('id', documentId)
+      .eq('organization_id', ctx.organizationId)
+      .like('status_message', `${MATCHING_FAILED_PREFIX}%`);
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error(error);
+    await recordMatchingFailure(ctx, documentId, error);
+    return false;
+  }
 }

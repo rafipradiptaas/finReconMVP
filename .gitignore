@@ -8,6 +8,8 @@ build/
 *.tsbuildinfo
 next-env.d.ts
 coverage/
+test-results/
+playwright-report/
 .vercel
 .DS_Store
 supabase/.temp/
