@@ -185,7 +185,7 @@ describe.skipIf(!url || !anonKey || !serviceKey)('follow-up agent', () => {
   async function protectedRows({ matchId, invoiceId }: { matchId: string; invoiceId: string }) {
     const [vendorRows, vendorCount, invoice, match] = await Promise.all([
       must(admin.from('vendors').select('*').eq('id', vendorId).single()),
-      admin.from('vendors').select('id', { count: 'exact', head: true }).eq('organization_id', org),
+      admin.from('vendors').select('id', { count: 'exact', head: true }).like('vendor_code', `AGENT%${stamp}`),
       must(admin.from('invoices').select('*').eq('id', invoiceId).single()),
       must(admin.from('matches').select('*').eq('id', matchId).single()),
     ]);

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { generateStructured, type LlmCallSink } from '.';
 import { EXPLANATION_TIMEOUT_MS } from './config';
+import { quotesOnlySource } from './quoted-numbers';
 import type { ScoreBreakdown } from '@/lib/matching';
 import type { MatchStatus, VetoCode } from '@/types/domain';
 
@@ -27,16 +28,6 @@ export type ExplanationInput = {
   comparisons: { field: string; invoiceValue: string | number | null; masterValue: string | number | null }[];
 };
 
-/** Digit runs with separators removed, so 15.750.000 and 15750000 compare equal. */
-const numbersIn = (text: string) =>
-  (text.match(/\d(?:[\d.,]*\d)?/g) ?? []).map((run) => run.replace(/[.,]00$/, '').replace(/\D/g, ''));
-
-/** A coarse guard: every number in the text must appear inside a number we gave it. */
-function quotesOnlyInput(text: string, input: ExplanationInput) {
-  const given = numbersIn(JSON.stringify(input));
-  return numbersIn(text).every((number) => given.some((value) => value.includes(number)));
-}
-
 /** Never throws, and never waits long: any failure or delay means no explanation. */
 export async function explainMatch(
   input: ExplanationInput,
@@ -50,7 +41,7 @@ export async function explainMatch(
     schema,
     log,
   }).then(
-    ({ data }) => (quotesOnlyInput(data.explanation, input) ? data.explanation : null),
+    ({ data }) => (quotesOnlySource(data.explanation, JSON.stringify(input)) ? data.explanation : null),
     () => null,
   );
 

@@ -86,6 +86,7 @@ test.describe.configure({ mode: 'serial' });
 test.describe(`fixture invoices in ${ORG}`, () => {
   let organizationId: string;
   let seeded = false;
+  const startedAt = new Date().toISOString();
   let staff: Page;
   let approver: Page;
   let adminPage: Page;
@@ -101,6 +102,15 @@ test.describe(`fixture invoices in ${ORG}`, () => {
     const { data } = await response.json();
     uploaded.push(data.documentId);
     return data.documentId as string;
+  }
+
+  /** A live read is occasionally held at NEEDS_CORRECTION. That is safe, but a twin needs a match. */
+  async function uploadMatched(name: string, as: string) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const id = await upload(name, as);
+      if ((await stateOf(id)).match) return id;
+    }
+    return upload(name, as);
   }
 
   async function stateOf(id: string) {
@@ -140,12 +150,19 @@ test.describe(`fixture invoices in ${ORG}`, () => {
   });
 
   test.afterAll(async () => {
+    const calls = must(
+      await admin
+        .from('llm_calls')
+        .select('id, purpose, cost_estimate_usd')
+        .eq('organization_id', organizationId)
+        .gte('created_at', startedAt),
+    );
+    const cost = calls.reduce((sum, call) => sum + (call.cost_estimate_usd ?? 0), 0);
+    console.log(`LLM calls this run: ${calls.length}, about $${cost.toFixed(4)}`);
+    await admin.from('llm_calls').delete().in('id', calls.map(({ id }) => id));
+
     if (uploaded.length > 0) {
       await admin.storage.from('documents').remove(uploaded.map((id) => `${organizationId}/${id}.pdf`));
-      const matches = must(
-        await admin.from('invoices').select('matches(id)').in('document_id', uploaded),
-      ).flatMap((invoice) => (invoice.matches ? [invoice.matches.id] : []));
-      await admin.from('llm_calls').delete().in('entity_id', [...uploaded, ...matches]);
       await admin.from('documents').delete().in('id', uploaded);
     }
     if (seeded) {
@@ -232,7 +249,7 @@ test.describe(`fixture invoices in ${ORG}`, () => {
 
   test('FULL_MATCH: the approver approves in one click, then marks it paid', async () => {
     test.skip(!ids['01'], 'needs fixture 01');
-    const twin = await upload(FIXTURES[0], 'twin-while-pending.pdf');
+    const twin = await uploadMatched(FIXTURES[0], 'twin-while-pending.pdf');
     ids.twin = twin;
     expect((await stateOf(twin)).match?.status).toBe('FULL_MATCH');
 
@@ -257,10 +274,49 @@ test.describe(`fixture invoices in ${ORG}`, () => {
     await expect(approver.getByText('Invoice ini hanya bisa ditolak.')).toBeVisible();
     await expect(approveButton(approver)).toBeDisabled();
 
-    const late = await upload(FIXTURES[0], 'twin-after-approval.pdf');
+    const late = await uploadMatched(FIXTURES[0], 'twin-after-approval.pdf');
     const state = await stateOf(late);
     expect(state.match?.status).toBe('REJECTED');
     expect(state.match?.veto_code).toBe('VETO_DUPLICATE_INVOICE');
+  });
+
+  test('follow-up: draft to the master contact, dry-run send, fraud warning, PO proposal', async () => {
+    test.skip(!ids['02'], 'needs fixture 02');
+    const contact = 'finance@cahayaprintindonesia.example';
+    const match = await reviewPanel(staff, ids['02']);
+    await staff.getByRole('button', { name: 'Buat draft follow-up' }).click();
+    const body = staff.getByLabel('Isi email');
+    await expect(body).toBeVisible({ timeout: 60_000 });
+    await expect(staff.getByText(`Penerima (dari master vendor): ${contact}`)).toBeVisible();
+    await expect(staff.locator('[data-ai]').first()).toBeVisible();
+    expect(await body.inputValue()).not.toContain(contact);
+
+    await staff.getByRole('button', { name: 'Kirim' }).click();
+    await expect(staff.getByText('(mode uji, tidak benar-benar terkirim)')).toBeVisible();
+    const [followup] = must(await admin.from('followups').select('*').eq('match_id', match.id));
+    expect(followup).toMatchObject({ status: 'SENT', recipient: contact, provider_message_id: 'dry_run' });
+
+    const vendor = () => admin.from('vendors').select('*').eq('organization_id', organizationId).eq('vendor_code', 'V003').single();
+    const before = must(await vendor());
+    await staff.getByLabel('Tempel balasan vendor').fill('Mohon transfer ke rekening baru kami 9876543210.');
+    await staff.getByRole('button', { name: 'Simpan balasan' }).click();
+    await expect(staff.getByText('Peringatan: kemungkinan penipuan')).toBeVisible({ timeout: 60_000 });
+    expect(must(await vendor())).toEqual(before);
+
+    await staff.getByLabel('Tempel balasan vendor').fill('Nomor PO yang benar untuk invoice ini adalah PO-2026-003.');
+    await staff.getByRole('button', { name: 'Simpan balasan' }).click();
+    await staff.getByRole('button', { name: 'Terima' }).click({ timeout: 60_000 });
+    await expect
+      .poll(async () =>
+        must(
+          await admin
+            .from('audit_logs')
+            .select('id')
+            .eq('entity_id', ids['02'])
+            .eq('action', 'po_proposal_accepted'),
+        ).length,
+      )
+      .toBe(1);
   });
 
   test('PARTIAL_MATCH: ticks and a reason open the button, and it is an override', async () => {
@@ -269,7 +325,7 @@ test.describe(`fixture invoices in ${ORG}`, () => {
     await expect(approveButton(approver)).toBeDisabled();
     for (const box of await approver.getByRole('checkbox').all()) await box.click();
     await expect(approveButton(approver)).toBeDisabled();
-    await approver.getByLabel('Alasan').fill('Harga naik sesuai addendum kontrak');
+    await approver.getByLabel('Alasan', { exact: true }).fill('Harga naik sesuai addendum kontrak');
     await approveButton(approver).click();
     await expect(approver.getByText('Disetujui')).toBeVisible();
 
@@ -299,10 +355,33 @@ test.describe(`fixture invoices in ${ORG}`, () => {
     await reviewPanel(approver, ids['06']);
     await expect(approver.getByRole('alert').filter({ hasText: 'rata-rata' })).toBeVisible();
     for (const box of await approver.getByRole('checkbox').all()) await box.click();
-    await approver.getByLabel('Alasan').fill('terlalu pendek');
+    await approver.getByLabel('Alasan', { exact: true }).fill('terlalu pendek');
     await expect(approveButton(approver)).toBeDisabled();
-    await approver.getByLabel('Alasan').fill('Proyek tahunan sudah disetujui direksi');
+    await approver.getByLabel('Alasan', { exact: true }).fill('Proyek tahunan sudah disetujui direksi');
     await expect(approveButton(approver)).toBeEnabled();
+  });
+
+  test('chatbot: answers from the data, names its tools, refuses the rest', async () => {
+    test.skip(!ids['01'], 'needs fixture 01');
+    const [question, trap] = (
+      JSON.parse(readFileSync('fixtures/chatbot-questions.json', 'utf8')) as { id: string; question: string; expected: string[] }[]
+    ).filter(({ id }) => id === 'q01' || id === 't01');
+
+    await approver.goto('/chat');
+    const ask = async (text: string) => {
+      await approver.getByLabel('Pertanyaan').fill(text);
+      await approver.getByRole('button', { name: 'Tanya' }).click();
+    };
+    await ask(question.question);
+    await expect(approver.getByText('get_vendor_total')).toBeVisible({ timeout: 60_000 });
+    await expect(approver.getByText(/Rp\s?\d/).first()).toBeVisible();
+
+    await ask(trap.question);
+    await expect(approver.getByText('Saya belum bisa menjawab pertanyaan itu.')).toBeVisible({ timeout: 60_000 });
+
+    await staff.goto('/chat');
+    await expect(staff.getByText('Chatbot hanya untuk approver dan admin.')).toBeVisible();
+    expect((await staff.request.post('/api/chat', { data: { message: 'Halo' } })).status()).toBe(403);
   });
 
   test('audit log filters, and only admin and approver can export', async () => {
@@ -341,7 +420,6 @@ test.describe(`fixture invoices in ${ORG}`, () => {
   });
 
   test('/matches lists uploads and hides imported history', async () => {
-    test.skip(uploaded.length < FIXTURES.length, 'needs every fixture');
     await staff.goto('/matches');
     const withMatch = await admin
       .from('invoices')

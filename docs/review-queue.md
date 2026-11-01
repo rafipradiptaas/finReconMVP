@@ -141,6 +141,16 @@ Waiting for your review before Phase 3 steps 5–6 start.
 62. **A long number in a reply warns even if it is a phone number.** The spec says any 8–20 digit sequence, and a warning only costs a look. Dots do not group digits, or `15.750.000` would warn; ISO dates are skipped; the vendor's own account and NPWP do not count.
 63. **The reply wrapper replaces `<` and `>` in the vendor's text,** so a reply cannot close `</vendor_reply>`.
 
+**Decisions I took (Phase 8):**
+
+64. **`runToolLoop` counts turns, so the 5-tool limit is enforced in `lib/chatbot/loop.ts`.** The sixth tool call in a message fails, including several in one turn.
+65. **An answer quoting a number no tool gave becomes the refusal.** The same coarse check as the explanation (`lib/llm/quoted-numbers.ts`). It stops a made-up number, not a real number attached to the wrong thing.
+66. **`get_vendor_total` sums by payment date,** in whole sen. The period filter is `paid_at`, so "tahun 2025" means paid in 2025. Vendor lookup is exact on the normalized name, then contains; two candidates return `found: false`.
+67. **`POST /api/chat` uses `withWriteContext` for the role check and `llm_calls`,** but every tool reads with the user's client.
+68. **Each chat message stands alone.** No history, so nothing carries reasoning across messages. Inside one message, the adapter sends `reasoning_content` back.
+69. **`eval:chatbot` runs in Demo Corp, read-only.** It writes nothing there: its calls go to the JSONL, not `llm_calls`. It resets the password of `E2E admin`, which nobody uses. Its expected answers hold only while Demo Corp's PAID history is the fixture alone, so run it before a demo run, not after.
+70. **`fixtures/chatbot-questions.json` is generated from the CSVs,** so no expected answer is typed by hand. Traps count as refused only on the exact sentence.
+
 ## Review: lib/agent/tools.ts and the send route (replaces STOP after Phase 7)
 
 **Read, in this order:**

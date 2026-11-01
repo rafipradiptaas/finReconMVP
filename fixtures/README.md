@@ -17,6 +17,7 @@ python3 -m venv .venv && .venv/bin/pip install -r eval/requirements.txt
 | `purchase_orders.csv` | 12 PO, 19 baris (beberapa multi-line). Satu baris per line item |
 | `invoice_history.csv` | 138 transaksi PAID, 8 vendor, Okt 2024–Agu 2026. Berisi **4 anomali historis** (~6,5× rata-rata: V003-004, V010-007, V005-009, V002-003) dan **2 duplikat** (H-V001-001 & H-V004-001 muncul dua kali) |
 | `invoices/*.pdf` | 10 invoice PDF, 3 tata letak berbeda (`eval/generate.py`) |
+| `chatbot-questions.json` | 30 pertanyaan + 10 jebakan. Jawaban dihitung dari CSV oleh `scripts/build-chatbot-questions.ts`, jangan diedit tangan |
 | `invoices/ground-truth.json` | Nilai benar per field + hasil match yang diharapkan. Dibaca test fixture-sanity |
 
 ## Skenario per invoice
