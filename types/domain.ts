@@ -95,6 +95,15 @@ export const ROLE_LABELS: Record<Role, string> = {
   approver: 'Approver',
 };
 
+export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
+  UPLOADED: 'Diunggah',
+  EXTRACTING: 'Sedang diekstraksi',
+  EXTRACTED: 'Terekstraksi',
+  NEEDS_CORRECTION: 'Perlu koreksi',
+  EXTRACTION_FAILED: 'Ekstraksi gagal',
+  UNSUPPORTED_FORMAT: 'Format tidak didukung',
+};
+
 export const VENDOR_STATUS_LABELS: Record<VendorStatus, string> = {
   verified: 'Terverifikasi',
   unverified: 'Belum terverifikasi',

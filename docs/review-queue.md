@@ -34,9 +34,9 @@ Waiting for your review before Phase 3 steps 5–6 start.
 - [x] Phase 3.2 document router
 - [x] Phase 3.3 extraction checks (review section below)
 - [x] Phase 3.4 lib/llm
-- [ ] Phase 3.5 upload route (not started)
-- [ ] Phase 3.6 documents UI + correction (not started)
-- [~] Phase 3.7 extract-batch + eval:smoke: scripts written, never run against the API
+- [x] Phase 3.5 upload route
+- [x] Phase 3.6 documents UI + correction
+- [x] Phase 3.7 extract-batch + eval:smoke
 - [ ] Phase 4.8 matching tests (not started)
 - [ ] Phase 4.9 matching engine (not started)
 - [ ] Phase 4.10 integration + /matches (not started)
@@ -73,6 +73,12 @@ Waiting for your review before Phase 3 steps 5–6 start.
 19. **DeepSeek cost is a ceiling:** the peak rate, ignoring cache hits. Off-peak is half.
 20. **`missing_api_key` for Anthropic checks the two env vars,** so an `ant` CLI profile alone would read as missing. This project configures keys through env only.
 21. **A 402 from DeepSeek has its own code,** `insufficient_balance`, and 400/422 have `bad_request`, beyond the list you asked for. Each points at a different fix.
+
+22. **A non-PDF upload gets a 400 and stores nothing,** rather than a document row at `UNSUPPORTED_FORMAT`. Storage paths always end in `.pdf`, and files are never deleted. A corrupt PDF does get a row and `UNSUPPORTED_FORMAT`.
+23. **Upload limit is 4 MB,** because Vercel rejects request bodies over about 4.5 MB.
+24. **Line items are read-only in the correction form and API.** Scalar fields are editable. Add this in Phase 5 if reviewers need it.
+25. **A correction that would break a critical field on an EXTRACTED document returns 400.** `DocumentStatus` has no backward transition, and a matched document must not silently return to NEEDS_CORRECTION. A correction after a decision returns 409.
+26. **`next start` browser check:** run by a throwaway script in the session scratchpad, against a temporary user in the fixture organization, cleaned up after. It is not in the repo. Add Playwright only if you want it in CI.
 
 ## Doc conflicts found (nothing changed)
 

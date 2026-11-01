@@ -5,6 +5,9 @@ import type { TextItem } from '@/lib/extraction-checks/types';
 /** Fewer characters than this means there is no usable text layer (product doc 6.1). */
 export const MIN_TEXT_CHARS = 50;
 
+/** The share of a font's height above the baseline; the rest of the box hangs below it. */
+const ASCENT_RATIO = 0.8;
+
 export type PdfText = { fullText: string; items: TextItem[] };
 
 /**
@@ -26,7 +29,12 @@ export async function extractPdfText(bytes: Uint8Array): Promise<PdfText> {
       items.push({
         page: number,
         str: item.str,
-        bbox: { x, y: height - baseline - fontHeight, width: item.width, height: fontHeight },
+        bbox: {
+          x,
+          y: height - baseline - fontHeight * ASCENT_RATIO,
+          width: item.width,
+          height: fontHeight,
+        },
       });
     }
   }

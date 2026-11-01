@@ -1,6 +1,6 @@
 import { CRITICAL_EXTRACTION_FIELDS, type FieldConfidence, type FieldVerification } from '@/types/domain';
 import { locateEvidence } from './locate-evidence';
-import { normalizeDate, normalizeDigits } from './normalize';
+import { normalizeDate, normalizeDigits, normalizeInvoiceNumber } from './normalize';
 import {
   amountsConsistent,
   formatOk,
@@ -29,7 +29,7 @@ import { fieldVerification } from './verify';
 
 export { CHECKS_VERSION } from './config';
 export { textFromItems } from './text';
-export type { CheckedField, CheckedInvoice, LineItem, RawInvoice, TextItem } from './types';
+export type { CheckedField, CheckedInvoice, Evidence, LineItem, RawInvoice, TextItem } from './types';
 
 /** text is null when there is no text layer (vision): grounded then does not apply. */
 export type DocumentText = { text: string | null; items: TextItem[] };
@@ -232,4 +232,26 @@ export function applyCorrections(
     },
     text,
   );
+}
+
+/** The values matching reads: normalized, and only what the invoices table stores. */
+export function invoiceValues(fields: CheckedInvoice) {
+  const digits = (value: string | null) => (value === null ? null : normalizeDigits(value));
+  const number = fields.invoice_number.value;
+  const date = fields.invoice_date.value;
+  return {
+    invoice_number: number,
+    invoice_number_normalized: number === null ? null : normalizeInvoiceNumber(number),
+    invoice_date: date === null ? null : normalizeDate(date),
+    vendor_name: fields.vendor_name.value,
+    npwp: digits(fields.npwp.value),
+    po_number: fields.po_number.value,
+    bank_name: fields.bank_name.value,
+    bank_account_number: digits(fields.bank_account_number.value),
+    bank_account_holder: fields.bank_account_holder.value,
+    subtotal: fields.subtotal.value,
+    tax_amount: fields.tax_amount.value,
+    total_amount: fields.total_amount.value,
+    line_items: fields.line_items.flatMap((line) => (line.value === null ? [] : [line.value])),
+  };
 }
