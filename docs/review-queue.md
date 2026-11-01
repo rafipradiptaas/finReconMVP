@@ -124,7 +124,7 @@ Waiting for your review before Phase 3 steps 5–6 start.
 
 **Open questions for you:**
 
-- **Correction can clear a veto.** Any role can type the master account into `bank_account_number` on the document page, and the re-match then passes `VETO_BANK_MISMATCH`. It is audited, and the field becomes `manual`, but CLAUDE.md says a veto is never overridable. Should a correction be refused on a veto match? Nothing changed.
+- ~~Correction can clear a veto.~~ Resolved by D25: 409 `VETO_LOCKED`.
 - **A pending match is not rechecked at approval, apart from duplicates.** A vendor suspended, or a bank account changed, after matching still approves. D18.5 says re-evaluation means uploading again, so nothing changed.
 
 ## Doc conflicts found (nothing changed)

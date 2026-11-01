@@ -97,6 +97,8 @@ export function isMatchingFailed(statusMessage: string | null | undefined): bool
 }
 
 /** Indonesian labels for the UI. Code stays English; labels do not. */
+export const MANUAL_NOT_IN_DOCUMENT = 'nilai manual, tidak ada di dokumen';
+
 export const FIELD_LABELS = {
   invoice_number: 'Nomor invoice',
   invoice_date: 'Tanggal invoice',

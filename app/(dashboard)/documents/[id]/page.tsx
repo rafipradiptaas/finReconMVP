@@ -4,6 +4,7 @@ import { DocumentReview } from '@/components/documents/document-review';
 import { DocumentStatusBadge } from '@/components/documents/document-status-badge';
 import { RematchButton } from '@/components/documents/rematch-button';
 import type { CheckedInvoice } from '@/lib/extraction-checks';
+import { correctionLock } from '@/lib/review';
 import { createClient } from '@/lib/supabase/server';
 import { isMatchingFailed } from '@/types/domain';
 
@@ -23,15 +24,14 @@ export default async function DocumentDetailPage({ params }: PageProps<'/documen
 
   const [{ data: extraction }, { data: invoice }, { data: signed }] = await Promise.all([
     supabase.from('extractions').select('fields').eq('document_id', id).maybeSingle(),
-    supabase.from('invoices').select('matches(review_status)').eq('document_id', id).maybeSingle(),
+    supabase.from('invoices').select('matches(status, review_status)').eq('document_id', id).maybeSingle(),
     supabase.storage.from('documents').createSignedUrl(document.storage_path, SIGNED_URL_SECONDS),
   ]);
 
   const correctable = document.status === 'NEEDS_CORRECTION' || document.status === 'EXTRACTED';
-  const reviewStatus = invoice?.matches?.review_status;
-  const decided = Boolean(reviewStatus && reviewStatus !== 'PENDING_REVIEW');
+  const lock = correctionLock(invoice?.matches ?? null);
   const matchingFailed =
-    isMatchingFailed(document.status_message) || (document.status === 'EXTRACTED' && !reviewStatus);
+    isMatchingFailed(document.status_message) || (document.status === 'EXTRACTED' && !invoice?.matches);
 
   return (
     <section className="space-y-4">
@@ -54,11 +54,12 @@ export default async function DocumentDetailPage({ params }: PageProps<'/documen
           Ada field kritis yang kosong atau belum terverifikasi. Periksa buktinya, lalu koreksi.
         </p>
       )}
+      {lock && <p className="text-sm">{lock.message}</p>}
       <DocumentReview
         documentId={document.id}
         pdfUrl={signed?.signedUrl ?? null}
         fields={(extraction?.fields as unknown as CheckedInvoice | undefined) ?? null}
-        editable={correctable && !decided}
+        editable={correctable && !lock}
       />
     </section>
   );

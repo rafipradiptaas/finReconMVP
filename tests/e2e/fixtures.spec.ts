@@ -195,6 +195,23 @@ test.describe(`fixture invoices in ${ORG}`, () => {
     await staff.getByRole('button', { name: 'Simpan koreksi' }).click();
     await expect(staff.locator('h1').locator('..')).toContainText('Terekstraksi');
     expect((await stateOf(ids['04'])).match?.status).toBe('FULL_MATCH');
+    await expect(staff.getByText('nilai manual, tidak ada di dokumen')).toBeVisible();
+  });
+
+  test('a veto refuses corrections, and a manual value needs a tick (D25)', async () => {
+    test.skip(!ids['03'] || !ids['04'], 'needs fixtures 03 and 04');
+    const corrected = await staff.request.post(`/api/documents/${ids['03']}/correct`, {
+      data: { corrections: { bank_account_number: '1234567890' } },
+    });
+    expect(corrected.status()).toBe(409);
+    expect((await corrected.json()).error.code).toBe('VETO_LOCKED');
+
+    const { match } = await stateOf(ids['04']);
+    await approver.goto(`/matches/${match!.id}`);
+    await expect(approver.getByRole('checkbox')).toHaveCount(1);
+    await expect(approver.getByRole('button', { name: 'Setujui', exact: true })).toBeDisabled();
+    await approver.getByRole('checkbox').click();
+    await expect(approver.getByRole('button', { name: 'Setujui', exact: true })).toBeEnabled();
   });
 
   const reviewPanel = async (page: Page, documentId: string) => {

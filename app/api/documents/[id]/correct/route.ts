@@ -10,6 +10,7 @@ import {
   type TextItem,
 } from '@/lib/extraction-checks';
 import { correctionsSchema } from '@/lib/extraction-checks/corrections';
+import { correctionLock } from '@/lib/review';
 import { tryMatchDocument } from '@/lib/server/match-document';
 import { setDocumentStatus } from '@/lib/server/process-document';
 import { fail, ok, withWriteContext } from '@/lib/server/write-context';
@@ -51,17 +52,14 @@ export const POST = withWriteContext(
 
     const { data: invoice, error: invoiceError } = await ctx.db
       .from('invoices')
-      .select('id, matches(review_status)')
+      .select('id, matches(status, review_status)')
       .eq('document_id', id)
       .eq('organization_id', ctx.organizationId)
       .single();
     if (invoiceError) throw invoiceError;
 
-    // A decided invoice cannot change under its decision (no backward transitions).
-    const reviewStatus = invoice.matches?.review_status;
-    if (reviewStatus && reviewStatus !== 'PENDING_REVIEW') {
-      return fail(409, 'INVALID_TRANSITION', 'Invoice ini sudah diputuskan dan tidak bisa dikoreksi.');
-    }
+    const lock = correctionLock(invoice.matches);
+    if (lock) return fail(409, lock.code, lock.message);
 
     const before = extraction.fields as unknown as CheckedInvoice;
     const text = textFromItems(extraction.text_items as unknown as TextItem[]);

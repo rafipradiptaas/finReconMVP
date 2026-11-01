@@ -253,7 +253,22 @@ describe.skipIf(!url || !serviceKey)('document routes', () => {
           data: { documentId },
         },
       } = await uploadDocument('fx01'));
+      await setMatch({ status: 'NO_MATCH', review_status: 'PENDING_REVIEW' });
     });
+
+    /** No vendor exists here, so a real match is a veto. Each case states its own. */
+    async function setMatch(values: { status: string; review_status: string }) {
+      const { id: invoiceId } = await row('invoices', 'document_id', documentId, 'id');
+      const { error } = await admin
+        .from('matches')
+        .upsert({ organization_id: org, invoice_id: invoiceId, ...values }, { onConflict: 'invoice_id' });
+      if (error) throw error;
+    }
+
+    async function refused(field: Record<string, unknown>) {
+      const response = await postCorrection(documentId, field);
+      return { status: response.status, code: (await response.json()).error?.code };
+    }
 
     it('refuses an invalid value', async () => {
       expect((await postCorrection(documentId, { npwp: '123' })).status).toBe(400);
@@ -280,14 +295,37 @@ describe.skipIf(!url || !serviceKey)('document routes', () => {
       expect((await postCorrection(body.data.documentId, { vendor_name: 'X' })).status).toBe(409);
     });
 
-    it('is 409 once the invoice has been decided', async () => {
-      const { id: invoiceId } = await row('invoices', 'document_id', documentId, 'id');
-      const { error } = await admin.from('matches').upsert(
-        { organization_id: org, invoice_id: invoiceId, status: 'FULL_MATCH', review_status: 'APPROVED' },
-        { onConflict: 'invoice_id' },
-      );
-      if (error) throw error;
-      expect((await postCorrection(documentId, { vendor_name: 'X' })).status).toBe(409);
+    it('stores a manual value the document does not show as not grounded (D25)', async () => {
+      await setMatch({ status: 'NO_MATCH', review_status: 'PENDING_REVIEW' });
+      expect((await postCorrection(documentId, { po_number: 'PO-DARI-EMAIL' })).status).toBe(200);
+      const { fields } = await row('extractions', 'document_id', documentId, 'fields');
+      expect((fields as { po_number: unknown }).po_number).toMatchObject({
+        value: 'PO-DARI-EMAIL',
+        verification: 'manual',
+        signals: { grounded: false },
+      });
+    });
+
+    it.each(['VETO_BANK_MISMATCH', 'VETO_VENDOR_NOT_FOUND', 'VETO_VENDOR_NOT_VERIFIED', 'VETO_DUPLICATE_INVOICE'])(
+      'refuses every field on a %s match (D25)',
+      async (veto_code) => {
+        await setMatch({ status: 'REJECTED', review_status: 'PENDING_REVIEW' });
+        const { id: invoiceId } = await row('invoices', 'document_id', documentId, 'id');
+        await admin.from('matches').update({ veto_code }).eq('invoice_id', invoiceId);
+        for (const field of [
+          { bank_account_number: '1234567890' },
+          { vendor_name: 'PT Lain' },
+          { invoice_number: 'INV-9' },
+        ]) {
+          expect(await refused(field)).toEqual({ status: 409, code: 'VETO_LOCKED' });
+        }
+        expect(await row('invoices', 'document_id', documentId, 'total_amount')).toEqual({ total_amount: 26640000 });
+      },
+    );
+
+    it.each(['APPROVED', 'PAID', 'REJECTED_BY_REVIEWER'])('refuses a correction on %s (D25)', async (review_status) => {
+      await setMatch({ status: 'FULL_MATCH', review_status });
+      expect(await refused({ vendor_name: 'X' })).toEqual({ status: 409, code: 'DECISION_LOCKED' });
     });
   });
 });

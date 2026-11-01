@@ -212,6 +212,21 @@ TOTAL  Rp 26.640.000`;
 });
 
 describe('applyCorrections', () => {
+  it('records whether a manual value is on the page (D25)', () => {
+    const checked = check(invoice());
+    const manual = applyCorrections(checked, { invoice_number: 'INV-TIDAK-DICETAK' }, LINES);
+    expect(manual.invoice_number.signals.grounded).toBe(false);
+    expect(manual.invoice_number.verification).toBe('manual');
+
+    const printed = String(checked.vendor_name.value);
+    expect(applyCorrections(checked, { vendor_name: printed }, LINES).vendor_name.signals.grounded).toBe(true);
+    expect(applyCorrections(checked, { po_number: null }, LINES).po_number.signals.grounded).toBeNull();
+    expect(applyCorrections(checked, { subtotal: 987654 }, LINES).subtotal.signals.grounded).toBe(false);
+    expect(applyCorrections(checked, { npwp: '999999999999999' }, LINES).npwp.signals.grounded).toBe(false);
+    expect(applyCorrections(checked, { invoice_date: '2031-01-02' }, LINES).invoice_date.signals.grounded).toBe(false);
+    expect(applyCorrections(checked, { invoice_number: 'INV-X' }, null).invoice_number.signals.grounded).toBeNull();
+  });
+
   it('marks edited fields manual and releases the document', () => {
     const checked = check(invoice({ invoice_number: missing() }));
     const corrected = applyCorrections(checked, { invoice_number: 'INV-777' }, LINES);

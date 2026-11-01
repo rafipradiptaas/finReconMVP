@@ -13,6 +13,7 @@ import { normalizeMoney } from '@/lib/extraction-checks/normalize';
 import {
   CRITICAL_EXTRACTION_FIELDS,
   FIELD_LABELS,
+  MANUAL_NOT_IN_DOCUMENT,
   type FieldConfidence,
   type FieldVerification,
 } from '@/types/domain';
@@ -195,6 +196,9 @@ export function DocumentReview({
                           )}
                           {field.value !== null && field.verification !== 'manual' && field.evidence.length === 0 && (
                             <p className="text-muted-foreground text-xs">Lokasi bukti tidak ditemukan</p>
+                          )}
+                          {field.verification === 'manual' && field.signals.grounded === false && (
+                            <p className="text-destructive text-xs">{MANUAL_NOT_IN_DOCUMENT}</p>
                           )}
                         </TableCell>
                         <TableCell>

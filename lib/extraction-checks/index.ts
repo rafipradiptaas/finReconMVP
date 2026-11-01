@@ -109,20 +109,36 @@ function withNoTaxRule(fields: CheckedInvoice, text: string | null): CheckedInvo
   };
 }
 
-export function runExtractionChecks(raw: RawInvoice, { text, items }: DocumentText): CheckedInvoice {
-  const grounded = (check: (haystack: string) => boolean) => (text === null ? null : check(text));
+/** Whether a scalar value is on the page. null = does not apply. */
+function fieldGrounded(name: ScalarField, value: string | number | null, text: string | null): boolean | null {
+  if (value === null) return null;
+  if (name === 'invoice_date') {
+    const iso = normalizeDate(String(value));
+    if (iso === null) return false;
+    return text === null ? null : groundedDate(iso, text);
+  }
+  if (text === null) return null;
+  if (typeof value === 'number') {
+    // A zero tax on a non-PKP invoice is usually not printed at all.
+    return value === 0 ? null : groundedMoney(value, text);
+  }
+  return name === 'npwp' || name === 'bank_account_number'
+    ? groundedDigits(normalizeDigits(value), text)
+    : groundedText(value, text);
+}
 
+export function runExtractionChecks(raw: RawInvoice, { text, items }: DocumentText): CheckedInvoice {
   const textField = (field: (typeof TEXT_FIELDS)[number]) => {
     const { value } = raw[field];
     return checked(raw[field], items, {
-      grounded: value === null ? null : grounded((t) => groundedText(value, t)),
+      grounded: fieldGrounded(field, value, text),
       format_ok: value === null ? null : formatOk(field, value),
     });
   };
   const digitField = (field: 'npwp' | 'bank_account_number') => {
     const { value } = raw[field];
     return checked(raw[field], items, {
-      grounded: value === null ? null : grounded((t) => groundedDigits(normalizeDigits(value), t)),
+      grounded: fieldGrounded(field, value, text),
       format_ok: value === null ? null : formatOk(field, value),
     });
   };
@@ -139,19 +155,17 @@ export function runExtractionChecks(raw: RawInvoice, { text, items }: DocumentTe
   const amountField = (field: (typeof AMOUNT_FIELDS)[number], arithmeticOk: boolean) => {
     const { value } = raw[field];
     return checked(raw[field], items, {
-      // A zero tax on a non-PKP invoice is usually not printed at all.
-      grounded: value === null || value === 0 ? null : grounded((t) => groundedMoney(value, t)),
+      grounded: fieldGrounded(field, value, text),
       format_ok: value === null ? null : formatOk(field, value),
       arithmetic_ok: arithmeticOk,
     });
   };
 
   const date = raw.invoice_date.value;
-  const iso = date === null ? null : normalizeDate(date);
   const fields: CheckedInvoice = {
     invoice_number: textField('invoice_number'),
     invoice_date: checked(raw.invoice_date, items, {
-      grounded: iso === null ? (date === null ? null : false) : grounded((t) => groundedDate(iso, t)),
+      grounded: fieldGrounded('invoice_date', date, text),
       format_ok: date === null ? null : formatOk('invoice_date', date),
     }),
     vendor_name: textField('vendor_name'),
@@ -205,7 +219,8 @@ export function applyCorrections(
       value,
       confidence: manual,
       source_text: null,
-      signals: { grounded: null, format_ok: null, arithmetic_ok: null },
+      // Trusted as given, but the reviewer must see when the page does not show it (D25).
+      signals: { grounded: fieldGrounded(name, value, text), format_ok: null, arithmetic_ok: null },
       evidence: [],
       verification: 'manual',
     } as never;

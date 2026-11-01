@@ -171,6 +171,8 @@ describe.skipIf(!url || !serviceKey)('matching failure and rematch', () => {
     const { data } = await uploadInvoice();
     const before = await stateOf(data.documentId);
     expect(before.match).not.toBeNull();
+    // No vendor exists here, so the real match is a veto, which refuses corrections (D25).
+    await admin.from('matches').update({ status: 'NO_MATCH', veto_code: null }).eq('id', before.match!.id);
 
     mocks.matchingError = failure;
     const response = await correct(

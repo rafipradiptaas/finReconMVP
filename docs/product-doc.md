@@ -293,6 +293,8 @@ Fungsi murni, tanpa I/O, tanpa import dari zona AI. Konstanta `CHECKS_VERSION` d
 - Ada field **kritis** yang `null` **atau** `unverified` → dokumen berhenti di `NEEDS_CORRECTION`. Tidak masuk matching sampai dikoreksi.
 - Field non-kritis `unverified` → tetap lanjut; jadi item yang di-flag di review panel.
 - Koreksi manual menyimpan nilai lama, nilai baru, siapa, kapan → `audit_logs`; field yang dikoreksi menjadi `confidence = manual`, `verification = manual`. Setelah koreksi, extraction checks dijalankan ulang untuk aritmetika; dokumen ke `EXTRACTED` bila tidak ada lagi field kritis bermasalah, lalu matching otomatis berjalan.
+- **Koreksi terkunci (D25):** match `REJECTED` (veto apa pun) → `409 VETO_LOCKED` untuk semua field; jalan keluarnya catatan investigasi + dokumen baru. Match yang sudah diputuskan (`APPROVED`, `PAID`, `REJECTED_BY_REVIEWER`) → `409 DECISION_LOCKED`. Koreksi hanya boleh selama belum ada match, atau match `PENDING_REVIEW` dan bukan `REJECTED`.
+- Nilai koreksi yang tidak ditemukan di teks dokumen ditampilkan sebagai "nilai manual, tidak ada di dokumen" dan menjadi item wajib centang (Bagian 7.5).
 
 ### 6.5 Lapisan LLM (D9)
 
@@ -381,6 +383,7 @@ ELSE:
 
 - **Override** = meng-approve sesuatu yang bukan `FULL_MATCH` tanpa anomali. Tercatat di audit bersama status asal.
 - Reviewer = pengunggah dokumen → 403 (D7).
+- Field yang dikoreksi manual dan nilainya tidak ada di teks dokumen menjadi item wajib centang di semua match non-veto, termasuk `FULL_MATCH` satu klik (D25). Koreksi tidak bisa menghapus veto.
 - Logika item wajib & validasi keputusan ada di `lib/review/` (fungsi murni); API memanggilnya, UI mencerminkannya.
 
 ### 7.6 Narasi Alasan (Zona AI, opsional)

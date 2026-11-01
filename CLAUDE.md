@@ -89,6 +89,8 @@ Tests first for every deterministic folder; 100% coverage on `lib/matching`.
 - `PARTIAL_MATCH` / `NO_MATCH` → tick every flagged item (each score component below max, each unverified field) + reason.
 - `anomaly_flag` → ticks + reason ≥ `ANOMALY_REASON_MIN_CHARS` (20).
 - `REJECTED` → no approve path in UI or API; investigation note only.
+- Corrections (D25): `REJECTED` match → 409 `VETO_LOCKED` for every field; the path out is an investigation note + a new document. Decided match → 409 `DECISION_LOCKED`. Allowed only with no match yet, or `PENDING_REVIEW` and not `REJECTED`.
+- A manually corrected field not grounded in the document is shown as "nilai manual, tidak ada di dokumen" and is a required tick on every non-veto match, one-click included (D25).
 - Reject always needs a reason. Mark PAID: approver only (admin cannot), from `APPROVED` only.
 - Server recomputes required items with `requiredReviewItems()` and rejects (400) incomplete submissions. Every review writes `review_sessions` + `audit_logs`.
 - AI-written text (explanations, drafts) is labelled "Dibuat AI" in the UI.

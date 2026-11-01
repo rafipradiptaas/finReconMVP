@@ -1,6 +1,6 @@
 import type { CheckedField } from '@/lib/extraction-checks';
 import type { ScoreBreakdown } from '@/lib/matching';
-import { CRITICAL_EXTRACTION_FIELDS, FIELD_LABELS } from '@/types/domain';
+import { CRITICAL_EXTRACTION_FIELDS, FIELD_LABELS, MANUAL_NOT_IN_DOCUMENT } from '@/types/domain';
 import { REVIEW_HIGH_AMOUNT } from './config';
 import type { ReviewExtraction, ReviewInvoice, ReviewItem, ReviewMatch } from './types';
 
@@ -37,6 +37,17 @@ function fieldItems(extraction: ReviewExtraction): ReviewItem[] {
   return [...scalar, ...lines];
 }
 
+/** A human typed a value the document does not show (D25). Every status, one click included. */
+function manualItems(extraction: ReviewExtraction): ReviewItem[] {
+  if (!extraction) return [];
+  return (Object.keys(FIELD_LABELS) as (keyof typeof FIELD_LABELS)[]).flatMap((name) => {
+    const { verification, signals } = extraction.fields[name];
+    return verification === 'manual' && signals.grounded === false
+      ? [{ id: `manual:${name}`, label: `${FIELD_LABELS[name]}: ${MANUAL_NOT_IN_DOCUMENT}` }]
+      : [];
+  });
+}
+
 /**
  * What a reviewer must tick before approving (product doc 9.2). The rows add
  * up: a high-amount FULL_MATCH with an anomaly needs both sets (D6). An unknown
@@ -60,6 +71,7 @@ export function requiredReviewItems(
           label: `Bukti ${FIELD_LABELS[name]} sesuai dokumen`,
         }))
       : []),
+    ...manualItems(extraction),
     ...(flagged ? [...scoreItems(match.score_breakdown), ...fieldItems(extraction)] : []),
     ...(match.anomaly_flag ? [{ id: 'anomaly', label: 'Anomali nominal: sudah diperiksa' }] : []),
   ];

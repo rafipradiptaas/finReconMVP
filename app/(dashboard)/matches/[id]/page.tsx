@@ -9,7 +9,7 @@ import { ReviewActions } from '@/components/matches/review-actions';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getSessionContext } from '@/lib/auth';
-import { buildComparisons } from '@/lib/review';
+import { buildComparisons, correctionLock } from '@/lib/review';
 import { loadReview } from '@/lib/server/review-context';
 import { createClient } from '@/lib/supabase/server';
 import { REVIEW_STATUS_LABELS, VETO_LABELS } from '@/types/domain';
@@ -73,9 +73,11 @@ export default async function MatchDetailPage({ params }: PageProps<'/matches/[i
         <MatchStatusBadge status={match.status} />
         {match.anomaly_flag && <Badge variant="destructive">Anomali</Badge>}
         {match.status !== 'REJECTED' && <Badge variant="outline">{REVIEW_STATUS_LABELS[match.review_status]}</Badge>}
-        <Link href={`/documents/${document.id}`} className="text-sm underline underline-offset-4">
-          Buka dokumen untuk koreksi
-        </Link>
+        {!correctionLock(match) && (
+          <Link href={`/documents/${document.id}`} className="text-sm underline underline-offset-4">
+            Buka dokumen untuk koreksi
+          </Link>
+        )}
       </div>
       {review.matchingFailed && <RematchButton documentId={document.id} />}
 

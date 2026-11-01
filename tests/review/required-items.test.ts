@@ -126,6 +126,41 @@ describe('requiredReviewItems (product doc 9.2)', () => {
     expect(ids(match({ status: 'NO_MATCH', score_breakdown: null }), { total_amount: LOW }, null)).toEqual([]);
   });
 
+  describe('a manual value the document does not show (D25)', () => {
+    const manual = (grounded: boolean | null) => ({
+      ...field('INV-2', 'manual'),
+      confidence: 'manual' as const,
+      signals: { grounded, format_ok: null, arithmetic_ok: null },
+    });
+
+    it('turns a one-click FULL_MATCH into a tick', () => {
+      const items = requiredReviewItems(
+        match(),
+        { total_amount: LOW },
+        { fields: fields({ invoice_number: manual(false) }) },
+      );
+      expect(items).toEqual([
+        { id: 'manual:invoice_number', label: 'Nomor invoice: nilai manual, tidak ada di dokumen' },
+      ]);
+    });
+
+    it('joins the evidence and flagged items', () => {
+      const checked = fields({ po_number: manual(false) });
+      expect(ids(match(), { total_amount: HIGH }, { fields: checked })).toEqual([...EVIDENCE, 'manual:po_number']);
+      expect(ids(partial(), { total_amount: LOW }, { fields: checked })).toEqual(['manual:po_number', 'score:amount']);
+    });
+
+    it('stays quiet when the manual value is on the page, or the signal does not apply', () => {
+      expect(ids(match(), { total_amount: LOW }, { fields: fields({ invoice_number: manual(true) }) })).toEqual([]);
+      expect(ids(match(), { total_amount: LOW }, { fields: fields({ invoice_number: manual(null) }) })).toEqual([]);
+    });
+
+    it('does not apply to a veto, which has no approve path', () => {
+      const veto = match({ status: 'REJECTED', score_breakdown: null });
+      expect(ids(veto, { total_amount: LOW }, { fields: fields({ invoice_number: manual(false) }) })).toEqual([]);
+    });
+  });
+
   it('gives every item an Indonesian label', () => {
     const items = requiredReviewItems(
       { ...partial(), anomaly_flag: true },
