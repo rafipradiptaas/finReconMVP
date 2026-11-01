@@ -37,7 +37,7 @@ Waiting for your review before Phase 3 steps 5–6 start.
 - [x] Phase 3.5 upload route
 - [x] Phase 3.6 documents UI + correction
 - [x] Phase 3.7 extract-batch + eval:smoke
-- [ ] Phase 4.8 matching tests (not started)
+- [x] Phase 4.8 matching tests (written, waiting for your review)
 - [ ] Phase 4.9 matching engine (not started)
 - [ ] Phase 4.10 integration + /matches (not started)
 - [x] Part 5 final report (`docs/session-b-report.md`, stopped early)
@@ -80,6 +80,12 @@ Waiting for your review before Phase 3 steps 5–6 start.
 25. **A correction that would break a critical field on an EXTRACTED document returns 400.** `DocumentStatus` has no backward transition, and a matched document must not silently return to NEEDS_CORRECTION. A correction after a decision returns 409.
 26. **`next start` browser check:** run by a throwaway script in the session scratchpad, against a temporary user in the fixture organization, cleaned up after. It is not in the repo. Add Playwright only if you want it in CI.
 
+27. **`score` is rounded to 2 decimals, then classified,** so the number shown always agrees with the status. A raw 89.995 shows as 90.00 and is `FULL_MATCH`.
+28. **A missing bank field on the invoice or in master data is `VETO_BANK_MISMATCH`.** The rule says "≠ master", and an unknown account must never pass.
+29. **Only `APPROVED`, `PAID` veto as duplicates; `PENDING_REVIEW` warns.** A veto-`REJECTED` invoice also sits at `PENDING_REVIEW`, so its twin gets the warning. It is display-only.
+30. **A `REJECTED` result still returns `poId`** when the PO is found, so the review panel can compare. Score and breakdown stay null.
+31. **One PO line can match one invoice line only,** so a repeated invoice line cannot score twice.
+
 ## Doc conflicts found (nothing changed)
 
 - D10 still says "Loop: Anthropic SDK tool use, own loop in lib/agent/". D19 refines this to `runToolLoop`; CLAUDE.md, product-doc and dev-guide already say so. The D10 line was left as written because the decision log is a record.
@@ -98,3 +104,23 @@ Waiting for your review before Phase 3 steps 5–6 start.
 `generated-documents.test.ts` runs each generated PDF through the real router and the checks, with ground truth standing in for the LLM, so every format is exercised on real documents at no API cost.
 
 **Output:** `npm test` at the end of the run: 17 files, 264 tests passed. These run only on synthetic documents, and never with real LLM output.
+
+## Review: lib/matching tests (replaces STOP 2)
+
+Written before any implementation, per the dev guide. They use literal numbers, not config constants, so changing a value in `lib/matching/config.ts` fails a test.
+
+| File | Covers |
+|---|---|
+| `tests/matching/similarity.test.ts` | Jaro-Winkler reference values, identical = 1, empty = 0, symmetry, prefix cap |
+| `tests/matching/normalize.test.ts` | Account, name, NPWP, invoice number, PO number |
+| `tests/matching/bank-names.test.ts` | Every alias, unknown banks, missing names |
+| `tests/matching/veto.test.ts` | Vendor identification (NPWP first, name ≥ 0.95, tie = not found); one test per `VetoCode`; no veto; duplicate only against APPROVED/PAID; pending twin warns; veto order |
+| `tests/matching/scoring.test.ts` | Weights = 100; each component at its boundaries (0.5% → 25, 3% → 11.11, 5% → 0); partial lines; ±Rp 1 tax; non-PKP; no lines; PO of another vendor |
+| `tests/matching/classify.test.ts` | 90, 89.99, 60, 59.99; PO not found → NO_MATCH at any score |
+| `tests/matching/anomaly.test.ts` | ≥ 6 PAID in 24 months; 3× boundary; < 6 uses Rp 500 jt; history window with injected time; only PAID, only this vendor |
+| `tests/matching/index.test.ts` | End to end, fixed order, worked example = 66.11, REJECTED never flagged |
+| `tests/matching/fixture-sanity.test.ts` | Every fixture's documented outcome, duplicate on re-upload, fixture 04 after correction, D13 |
+
+**Run output, before implementation:** 8 of 9 files fail. Seven fail at import because the modules do not exist, and 4 tests in `normalize.test.ts` fail because the functions do not exist. `bank-names.test.ts` passes, because you approved that normalizer first, and so does the invoice-number test, because the function already existed.
+
+Independent check, outside the code under test: fixture 09's closest master vendor is V001 at 0.9398, below 0.95. D13's old figure of 0.9655 was for the old name.
