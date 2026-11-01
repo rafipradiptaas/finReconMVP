@@ -10,5 +10,6 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts'],
     testTimeout: 30_000,
+    coverage: { include: ['lib/matching/**', 'lib/extraction-checks/**'] },
   },
 });

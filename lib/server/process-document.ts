@@ -10,6 +10,7 @@ import {
 } from '@/lib/extraction-checks';
 import { extractInvoice } from '@/lib/llm/extract-invoice';
 import { llmCallsWriter } from '@/lib/llm/log-call';
+import { matchDocument } from '@/lib/server/match-document';
 import type { WriteContext } from '@/lib/server/write-context';
 import type { Json } from '@/types/database.types';
 import type { DocumentStatus } from '@/types/domain';
@@ -149,12 +150,16 @@ export async function processDocument(
     return { documentId, status: 'UNSUPPORTED_FORMAT' as DocumentStatus };
   }
 
+  let status: DocumentStatus;
   try {
-    return { documentId, status: await extract(ctx, documentId, text) as DocumentStatus };
+    status = await extract(ctx, documentId, text);
   } catch (error) {
     // A row must never stay stuck in EXTRACTING.
     console.error(error);
     await setDocumentStatus(ctx, documentId, 'EXTRACTING', 'EXTRACTION_FAILED', DEFAULT_FAILURE_MESSAGE);
     return { documentId, status: 'EXTRACTION_FAILED' as DocumentStatus };
   }
+
+  if (status === 'EXTRACTED') await matchDocument(ctx, documentId);
+  return { documentId, status };
 }

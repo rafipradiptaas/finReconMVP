@@ -104,6 +104,27 @@ export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
   UNSUPPORTED_FORMAT: 'Format tidak didukung',
 };
 
+export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
+  REJECTED: 'Ditolak',
+  FULL_MATCH: 'Cocok penuh',
+  PARTIAL_MATCH: 'Cocok sebagian',
+  NO_MATCH: 'Tidak cocok',
+};
+
+export const VETO_LABELS: Record<VetoCode, string> = {
+  VETO_VENDOR_NOT_FOUND: 'Vendor tidak ditemukan',
+  VETO_VENDOR_NOT_VERIFIED: 'Vendor belum terverifikasi',
+  VETO_BANK_MISMATCH: 'Rekening tidak cocok',
+  VETO_DUPLICATE_INVOICE: 'Invoice duplikat',
+};
+
+export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
+  PENDING_REVIEW: 'Menunggu review',
+  APPROVED: 'Disetujui',
+  REJECTED_BY_REVIEWER: 'Ditolak reviewer',
+  PAID: 'Dibayar',
+};
+
 export const VENDOR_STATUS_LABELS: Record<VendorStatus, string> = {
   verified: 'Terverifikasi',
   unverified: 'Belum terverifikasi',

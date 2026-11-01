@@ -55,6 +55,13 @@ describe('identifyVendor', () => {
   });
 });
 
+describe('identifyVendor with gaps in master data', () => {
+  it('skips a master vendor with no NPWP when the invoice has one', () => {
+    const blank = vendor({ npwp: null, vendor_name: 'Nama Lain' });
+    expect(identifyVendor(invoice({ npwp: '011234567891000' }), [blank])).toBeNull();
+  });
+});
+
 describe('checkVeto', () => {
   const clear = { vetoCode: null, pendingDuplicateWarning: false };
 

@@ -1,6 +1,17 @@
+import { normalizeDigits, normalizeInvoiceNumber } from '@/lib/extraction-checks/normalize';
 import { BANK_ALIASES, BANK_NAME_NOISE } from './config';
 
-export { normalizeInvoiceNumber } from '@/lib/extraction-checks/normalize';
+export { normalizeInvoiceNumber };
+export const normalizeAccount = normalizeDigits;
+export const normalizeNpwp = normalizeDigits;
+export const normalizePoNumber = normalizeInvoiceNumber;
+
+export function normalizeName(name: string): string {
+  return name
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .trim();
+}
 
 function bankKey(name: string): string {
   return name

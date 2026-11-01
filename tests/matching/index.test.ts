@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { runMatching } from '@/lib/matching';
+import { pendingDuplicateInvoices, runMatching } from '@/lib/matching';
 import type { HistoryEntry } from '@/lib/matching/types';
 import { invoice, paid, purchaseOrder, vendor } from './helpers';
 
@@ -13,6 +13,43 @@ const context = (over = {}) => ({
 });
 
 const manyPaid = Array.from({ length: 6 }, (_, i) => paid({ invoice_id: `h${i}`, total_amount: 1000000 }));
+
+describe('pendingDuplicateInvoices', () => {
+  const row = (invoice_id: string, over = {}) => ({
+    invoice_id,
+    vendor_id: 'v1',
+    invoice_number_normalized: 'INV001',
+    review_status: 'PENDING_REVIEW' as const,
+    ...over,
+  });
+
+  it('marks both pending twins', () => {
+    expect(pendingDuplicateInvoices([row('a'), row('b')])).toEqual(new Set(['a', 'b']));
+  });
+
+  it('does not mark a pending invoice whose twin is already decided', () => {
+    const rows = [row('a'), row('b', { review_status: 'REJECTED_BY_REVIEWER' })];
+    expect(pendingDuplicateInvoices(rows).has('a')).toBe(false);
+  });
+
+  it('marks a decided invoice whose twin is still pending', () => {
+    const rows = [row('a', { review_status: 'APPROVED' }), row('b')];
+    expect(pendingDuplicateInvoices(rows)).toEqual(new Set(['a']));
+  });
+
+  it('needs the same vendor and number', () => {
+    expect(pendingDuplicateInvoices([row('a'), row('b', { vendor_id: 'v2' })])).toEqual(new Set());
+    const rows = [row('a'), row('b', { invoice_number_normalized: 'INV002' })];
+    expect(pendingDuplicateInvoices(rows)).toEqual(new Set());
+  });
+
+  it('ignores invoices with no vendor or no number', () => {
+    const rows = [row('a', { vendor_id: null }), row('b', { vendor_id: null })];
+    expect(pendingDuplicateInvoices(rows)).toEqual(new Set());
+    const unnumbered = [row('a', { invoice_number_normalized: null }), row('b', { invoice_number_normalized: null })];
+    expect(pendingDuplicateInvoices(unnumbered)).toEqual(new Set());
+  });
+});
 
 describe('runMatching', () => {
   it('a clean invoice is a FULL_MATCH', () => {
