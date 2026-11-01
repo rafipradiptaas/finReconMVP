@@ -1,28 +1,19 @@
-# Session B report — stopped early
+# Session B report
 
-**The run hit a hard stop: `ANTHROPIC_API_KEY` is empty in `.env.local`.** Session B is not finished. Phase 3 is partly done and Phase 4 was not started. Details: `docs/review-queue.md`, "HARD STOP".
+**Session B is complete: Phases 3 and 4 are done, tested and committed on the local branch `session-b`.** Nothing was pushed or merged.
 
-Nothing was pushed or merged. All work is on the local branch `session-b`.
+The first attempt stopped on an empty `ANTHROPIC_API_KEY`. D23 then moved development to DeepSeek, and the session finished on that provider. All data sent to DeepSeek was synthetic.
 
-## Done
+## What was done
 
 | Part | Result |
 |---|---|
-| 1. Decision log | Already done in `20311b2`; no change |
-| 2. Other docs | Already done in `20311b2`; checked item by item, no leftovers |
-| 3. D22 code | Code was already in `20311b2`. Migration 0003 had never been applied: applied, verified, tests added |
-| Phase 3 | Steps 1–4 done, step 7 written but unverified, steps 5–6 not started |
-| Phase 4 | Not started |
-
-| Phase 3 step | Status |
-|---|---|
-| 1. Generator, fixtures | Done |
-| 2. Document router | Done |
-| 3. Extraction checks | Done |
-| 4. `lib/llm` | Done with a mocked provider; never run against the real API |
-| 5. Upload route | **Not started** |
-| 6. Documents UI, correction route | **Not started** |
-| 7. `extract:batch`, `eval:smoke` | Scripts written; **never completed a real run** |
+| Decision log | D23 (DeepSeek) and D24 (non-PKP tax) added and reflected in CLAUDE.md and product-doc |
+| D22 follow-ups | Migration 0003 applied and verified, tests added |
+| Migration 0004 | `documents` bucket, approved by you, applied and verified |
+| Error codes | Missing key, auth rejected, rate limit, provider error, network error and schema-invalid are separate. Added `insufficient_balance` and `bad_request` |
+| Phase 3 | Generator, router, extraction checks, LLM layer with both adapters, upload route, documents UI with evidence highlights, correction route, `extract:batch`, `eval:smoke` |
+| Phase 4 | Matching engine, integration on upload and correction, `/matches` |
 
 ## Commits
 
@@ -30,90 +21,85 @@ Nothing was pushed or merged. All work is on the local branch `session-b`.
 |---|---|
 | `6cfb014` | phase 2: follow-ups (D22) |
 | `8082da8` | phase 3: generator, document router, extraction checks, llm layer |
-| final commit on `session-b` | phase 3: extract-batch and eval:smoke scripts, hard stop report |
+| `5f4f74f` | phase 3: extract-batch and eval:smoke scripts, hard stop report |
+| `0146a3c` | docs: D23 |
+| `481ba2f` | phase 3: error codes |
+| `1cf1a46` | phase 3: deepseek adapter |
+| `b52be30` | docs: record DeepSeek live check |
+| `0c28270` | phase 3: non-PKP tax rule (D24), bank names, smoke totals |
+| `dd0021b` | phase 3: upload and documents UI |
+| `c8852cc` | phase 4: matching tests (failing, implementation next) |
+| `06b7544` | phase 4: matching engine, integration, /matches |
+| `86c3e19` | phase 4: show no review state on REJECTED, README status |
+| latest | docs: session B report |
 
 ## Check results
 
 | Check | Result |
 |---|---|
-| `npm test` | 17 files, 264 tests passed |
+| `npm test` | 30 files, 534 tests passed, including the real-database integration tests |
 | `npm run typecheck` | Passed |
-| `npm run lint` | Passed |
-| Generator determinism | Two runs identical during development. Combined hash of the final output: `a40b871a06505b9c178d23d79e899f5a9ccaa9e3` (one run; repeat below) |
-| Migration 0003 | Applied. Constraint present, `document_id` nullable, anon cannot execute `current_org_id()`, authenticated can |
-| Migration 0004 | Applied. Bucket is private, policy present |
-| `npm run db:types` | **Fails**: Supabase CLI not logged in. Types patched by hand |
+| `npm run lint` | Passed, no warnings |
+| `npm run build` | Passed |
+| `lib/matching` coverage | 100% statements, branches, functions and lines |
+| Mutation check | 20 changes to `lib/matching/config.ts`, covering every weight, threshold and tolerance: each one failed at least one test |
+| Hardcoded numbers | No score, threshold or tolerance outside `lib/matching/config.ts` (grep) |
+| Generator | Two runs identical: `a40b871a06505b9c178d23d79e899f5a9ccaa9e3` |
+| Zone boundaries | Deterministic folders import nothing from the AI zone; provider SDKs stay in `lib/llm/providers/`; the vision path is unreachable from the app (`tests/zones.test.ts`) |
+| `npm run eval:smoke` | **Passed.** Critical-field accuracy 50/50, 0 wrong while verified, 10 calls, 20,793 + 7,331 tokens, $0.0150 (ceiling) |
 
 ## Fixture outcomes
 
-Matching does not exist yet, so **no match outcome has been tested**. The table shows document status only, with ground truth standing in for the LLM. This proves the PDFs and the checks agree, not that a real extraction works.
+Uploaded through the running app in Chrome, with live DeepSeek, in the RLS Audit Fixture organization. Master data and 138 history rows were loaded from `fixtures/`, then removed. **Actual matched expected on all 10.**
 
-| Fixture | Expected status | Actual (perfect read) | Expected match | Actual match |
-|---|---|---|---|---|
-| 01 | EXTRACTED | EXTRACTED | FULL_MATCH | not built |
-| 02 | EXTRACTED | EXTRACTED | PARTIAL_MATCH | not built |
-| 03 | EXTRACTED | EXTRACTED | REJECTED / VETO_BANK_MISMATCH | not built |
-| 04 | NEEDS_CORRECTION | NEEDS_CORRECTION | FULL_MATCH after correction | not built |
-| 05 | EXTRACTED | EXTRACTED | FULL_MATCH | not built |
-| 06 | EXTRACTED | EXTRACTED | FULL_MATCH + anomaly | not built |
-| 07 | EXTRACTED | EXTRACTED | REJECTED / VETO_VENDOR_NOT_VERIFIED | not built |
-| 08 | EXTRACTED | EXTRACTED | NO_MATCH | not built |
-| 09 | EXTRACTED | EXTRACTED | REJECTED / VETO_VENDOR_NOT_FOUND | not built |
-| 10 | UNSUPPORTED_FORMAT | under the 50-character threshold | none | none |
+| Fixture | Expected | Actual | Score |
+|---|---|---|---|
+| 01 | FULL_MATCH | FULL_MATCH | 100 |
+| 02 | PARTIAL_MATCH | PARTIAL_MATCH | 66.11 |
+| 03 | REJECTED / VETO_BANK_MISMATCH | REJECTED / VETO_BANK_MISMATCH | - |
+| 04 | NEEDS_CORRECTION → FULL_MATCH | NEEDS_CORRECTION → corrected → FULL_MATCH | 100 |
+| 05 | FULL_MATCH | FULL_MATCH | 100 |
+| 06 | FULL_MATCH + anomaly | FULL_MATCH + anomaly, 8.7× the mean of 14 PAID invoices | 100 |
+| 07 | REJECTED / VETO_VENDOR_NOT_VERIFIED | REJECTED / VETO_VENDOR_NOT_VERIFIED | - |
+| 08 | NO_MATCH | NO_MATCH | 25 |
+| 09 | REJECTED / VETO_VENDOR_NOT_FOUND | REJECTED / VETO_VENDOR_NOT_FOUND | - |
+| 10 | UNSUPPORTED_FORMAT | UNSUPPORTED_FORMAT | - |
+| 01 again, first pending | FULL_MATCH + warning | FULL_MATCH + warning on `/matches` | 100 |
+| 01 again, first approved | REJECTED / VETO_DUPLICATE_INVOICE | REJECTED / VETO_DUPLICATE_INVOICE | - |
 
-All 12 eval documents also reach EXTRACTED with a perfect read.
+D13 holds: fixture 09's closest master vendor is V001 at 0.9398, below 0.95, and its NPWP is not in master data.
 
-## Claude API calls
+The history rows were inserted directly for this run. Until the Phase 8 import exists, fixture 06 **will not flag an anomaly in the demo organization**: it falls back to the Rp 500 jt threshold.
 
-**0 of 5 reached the API.** One attempt failed locally with no credentials: no tokens, no charge, 0 rows in `llm_calls`. End-to-end extraction has **not** been confirmed.
+## LLM use
 
-## To run tomorrow
+About 40 successful DeepSeek calls on `deepseek-flash`, roughly $0.06 at peak rates (an upper estimate). `llm_calls` recorded model, tokens, cost and latency for each of the 11 calls in the fixture run. No Claude API calls: `ANTHROPIC_API_KEY` is empty, so the Anthropic adapter has only been tested with mocks.
 
-```bash
-# 1. Put the key in .env.local, then confirm extraction on one fixture (1 call)
-mkdir -p /tmp/one && cp fixtures/invoices/01_full_match_V001.pdf /tmp/one/
-npm run extract:batch -- /tmp/one --out /tmp/one.jsonl
+## Read the accuracy numbers with care
 
-# 2. Confirm types match 0003 (expect no diff)
-npx supabase login && npm run db:types && git diff --stat types/
-
-# 3. Generator determinism (expect the same hash twice)
-.venv/bin/python eval/generate.py && shasum fixtures/invoices/* eval/data/pdfs/* eval/data/ground_truth/* | shasum
-.venv/bin/python eval/generate.py && shasum fixtures/invoices/* eval/data/pdfs/* eval/data/ground_truth/* | shasum
-
-# 4. After the remaining work is built
-npm run eval:smoke                # about 10 paid calls
-npm test -- --coverage            # lib/matching must reach 100%
-# Upload each fixture through /documents and compare with fixtures/README.md
-```
-
-## Continue prompt
-
-Paste after setting the key:
-
-```
-Read CLAUDE.md and docs/decisions/2026-10-31-v3.md. We are in Session B of docs/dev-guide.md. Read that session's prompt in section 3 and the product-doc sections it lists, plus docs/review-queue.md.
-Current state: on branch session-b, Phase 3 steps 1–4 are done, step 7's scripts are written but unverified, steps 5–6 and Phase 4 are not started. The run stopped because ANTHROPIC_API_KEY was empty.
-Run git log --oneline -15 and the test suite, confirm extraction on one fixture with npm run extract:batch, then rebuild the todo list and continue from Phase 3 step 5. Fix the "Known issues" in docs/review-queue.md first. Keep the same STOP points.
-```
+- **The 50/50 is optimistic.** It comes from clean synthetic PDFs, and `eval:smoke` scores only the 5 critical fields.
+- **Thinking is off for extraction.** Strict tool calling requires it, so `effort` has no effect there. Nothing shows this hurting accuracy, but this data is too easy to prove it. Session D should compare `json_object` with thinking on.
 
 ## What to review, in priority order
 
-1. **`lib/extraction-checks/`** line by line: [review section](review-queue.md#review-lib-extraction-checks-replaces-stop-1).
-2. **`supabase/migrations/0004_documents_bucket.sql`**: new and already applied; you did not ask for it. See Decision 14.
-3. **`lib/llm/`**, especially the prompt in `extract-invoice.ts`. It has never run on a real model.
-4. **Regenerated fixture PDFs** and `eval/data/table.csv`. See Decision 16.
-5. **[Decisions I took](review-queue.md#decisions-i-took)**: 16 items.
-
-`lib/matching` has nothing to review yet.
+1. **`lib/matching/`** line by line, especially `veto.ts`: [test list](review-queue.md#review-libmatching-tests-replaces-stop-2).
+2. **`lib/extraction-checks/`**, including the D24 rule in `index.ts`: [review section](review-queue.md#review-libextraction-checks-replaces-stop-1).
+3. **`lib/server/process-document.ts`, `lib/server/match-document.ts`, `app/api/documents/[id]/correct/route.ts`**.
+4. **`lib/llm/providers/openai-compatible.ts`** and the prompt in `lib/llm/extract-invoice.ts`.
+5. **[Decisions I took](review-queue.md#decisions-i-took)**: 34 items. You have already confirmed 27–31.
 
 ## What you must do manually
 
-- Set `ANTHROPIC_API_KEY` in `.env.local`.
-- Run `npx supabase login`. No SQL needs running by hand: 0003 and 0004 are both applied.
+- Run `npx supabase login && npm run db:types`, then check `git diff --stat types/`. The CLI was not logged in, so the 0003 types were patched by hand. Expect no diff.
+- Set `LLM_PROVIDER` and `DEEPSEEK_API_KEY` in Vercel before testing staging.
+- Run the "Verifikasi Sesi B" checklist in `docs/dev-guide.md` as a Demo Corp user. My browser runs used the fixture organization, so Demo Corp has not been exercised.
+- Merge `session-b` when you are satisfied.
 
 ## Unresolved
 
-- Phase 3 steps 5–6 and all of Phase 4 are not built.
-- See "Known issues" in `docs/review-queue.md`: the error logging gap, D13 not yet proven, and the schema never seen by the real API.
-- Vercel limits request bodies to about 4.5 MB, which will cap upload size when step 5 is built.
+- **Line items cannot be corrected.** Scalar fields are editable; line items are read-only in the form and the API (Decision 24). A misread line can only be fixed by uploading again.
+- **A matching failure leaves no match row.** The route returns a 500, the document stays EXTRACTED, and any correction re-runs matching.
+- **Upload limit is 4 MB,** because of Vercel's request size limit.
+- **DeepSeek cost is a ceiling:** peak rate, with cache hits ignored.
+- **The browser checks are not in the repo.** They ran from a throwaway script. Add Playwright if you want them in CI.
+- **`npm test -- --coverage`** reports `lib/matching` and `lib/extraction-checks` together. `lib/extraction-checks` is at 97.8% statements and 90.05% branches, so its uncovered branches are still to review. It has no 100% requirement.
