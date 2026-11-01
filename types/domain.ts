@@ -88,11 +88,65 @@ export function canTransitionReviewStatus(from: ReviewStatus, to: ReviewStatus):
   return REVIEW_STATUS_TRANSITIONS[from].includes(to);
 }
 
+/** documents.status_message of an EXTRACTED document whose matching threw. */
+export const MATCHING_FAILED_PREFIX = 'MATCHING_FAILED:';
+export const MATCHING_FAILED_LABEL = 'Matching gagal — jalankan ulang';
+
+export function isMatchingFailed(statusMessage: string | null | undefined): boolean {
+  return statusMessage?.startsWith(MATCHING_FAILED_PREFIX) ?? false;
+}
+
 /** Indonesian labels for the UI. Code stays English; labels do not. */
+export const MANUAL_NOT_IN_DOCUMENT = 'nilai manual, tidak ada di dokumen';
+
+export const FIELD_LABELS = {
+  invoice_number: 'Nomor invoice',
+  invoice_date: 'Tanggal invoice',
+  vendor_name: 'Nama vendor',
+  npwp: 'NPWP',
+  po_number: 'Nomor PO',
+  bank_name: 'Bank',
+  bank_account_number: 'Nomor rekening',
+  bank_account_holder: 'Pemilik rekening',
+  subtotal: 'Subtotal (DPP)',
+  tax_amount: 'PPN',
+  total_amount: 'Total',
+} as const;
+
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Admin',
   ap_staff: 'Staf AP',
   approver: 'Approver',
+};
+
+export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
+  UPLOADED: 'Diunggah',
+  EXTRACTING: 'Sedang diekstraksi',
+  EXTRACTED: 'Terekstraksi',
+  NEEDS_CORRECTION: 'Perlu koreksi',
+  EXTRACTION_FAILED: 'Ekstraksi gagal',
+  UNSUPPORTED_FORMAT: 'Format tidak didukung',
+};
+
+export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
+  REJECTED: 'Ditolak',
+  FULL_MATCH: 'Cocok penuh',
+  PARTIAL_MATCH: 'Cocok sebagian',
+  NO_MATCH: 'Tidak cocok',
+};
+
+export const VETO_LABELS: Record<VetoCode, string> = {
+  VETO_VENDOR_NOT_FOUND: 'Vendor tidak ditemukan',
+  VETO_VENDOR_NOT_VERIFIED: 'Vendor belum terverifikasi',
+  VETO_BANK_MISMATCH: 'Rekening tidak cocok',
+  VETO_DUPLICATE_INVOICE: 'Invoice duplikat',
+};
+
+export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
+  PENDING_REVIEW: 'Menunggu review',
+  APPROVED: 'Disetujui',
+  REJECTED_BY_REVIEWER: 'Ditolak reviewer',
+  PAID: 'Dibayar',
 };
 
 export const VENDOR_STATUS_LABELS: Record<VendorStatus, string> = {

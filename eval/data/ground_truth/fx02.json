@@ -1,0 +1,47 @@
+{
+  "doc_id": "fx02",
+  "file": "fixtures/invoices/02_partial_price_plus3pct_V003.pdf",
+  "template": "faktur",
+  "variant": {
+    "date_format": "iso",
+    "number_format": "id",
+    "po_placement": "header",
+    "non_pkp": false,
+    "second_bank": false,
+    "multi_page": false,
+    "narrow_desc": false
+  },
+  "fields": {
+    "invoice_number": "INV-CPI-0342",
+    "invoice_date": "2026-07-19",
+    "vendor_name": "PT Cahaya Print Indonesia",
+    "npwp": "033456789123000",
+    "po_number": "PO-2026-003",
+    "bank_name": "BNI",
+    "bank_account_number": "0987654321",
+    "bank_account_holder": "PT CAHAYA PRINT INDONESIA",
+    "subtotal": 11896500,
+    "tax_amount": 1308615,
+    "total_amount": 13205115,
+    "line_items": [
+      {
+        "description": "Cetak brosur A4 full color (rim)",
+        "quantity": 20,
+        "unit_price": 463500,
+        "subtotal": 9270000
+      },
+      {
+        "description": "Cetak kartu nama (box)",
+        "quantity": 30,
+        "unit_price": 87550,
+        "subtotal": 2626500
+      }
+    ]
+  },
+  "expected": {
+    "document_status": "EXTRACTED",
+    "match_status": "PARTIAL_MATCH",
+    "veto_code": null,
+    "anomaly_flag": false
+  }
+}

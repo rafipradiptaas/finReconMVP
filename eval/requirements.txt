@@ -1,0 +1,6 @@
+reportlab==5.1.0
+Pillow==13.0.0
+# Used by the eval phase (scan variants and analysis).
+pypdfium2
+pandas
+matplotlib

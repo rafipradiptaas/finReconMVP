@@ -1,0 +1,41 @@
+{
+  "doc_id": "ev07",
+  "file": "eval/data/pdfs/ev07.pdf",
+  "template": "banner",
+  "variant": {
+    "date_format": "dmy_slash",
+    "number_format": "id",
+    "po_placement": "header",
+    "non_pkp": false,
+    "second_bank": true,
+    "multi_page": false,
+    "narrow_desc": false
+  },
+  "fields": {
+    "invoice_number": "AK/IX/2026/014",
+    "invoice_date": "2026-09-08",
+    "vendor_name": "CV Anugrah Kebersihan",
+    "npwp": "077891234567000",
+    "po_number": "PO-2026-006",
+    "bank_name": "BCA",
+    "bank_account_number": "3344556677",
+    "bank_account_holder": "CV ANUGRAH KEBERSIHAN",
+    "subtotal": 18500000,
+    "tax_amount": 2035000,
+    "total_amount": 20535000,
+    "line_items": [
+      {
+        "description": "Jasa kebersihan kantor (bulan)",
+        "quantity": 1,
+        "unit_price": 18500000,
+        "subtotal": 18500000
+      }
+    ]
+  },
+  "expected": {
+    "document_status": "EXTRACTED",
+    "match_status": null,
+    "veto_code": null,
+    "anomaly_flag": false
+  }
+}

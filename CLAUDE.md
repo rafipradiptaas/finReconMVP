@@ -3,7 +3,7 @@
 B2B SaaS pre-payment control layer for corporate Accounts Payable (Indonesia). An LLM reads vendor invoices; deterministic code checks every value it read, matches invoices against purchase orders and vendor master data, rejects risky payments with hard rules, and routes grey cases to a human review panel built to resist rubber-stamping. Everything is recorded in an immutable audit trail.
 
 Sources of truth, in order:
-1. `docs/decisions/2026-10-31-v3.md` (decision log D1–D22)
+1. `docs/decisions/2026-10-31-v3.md` (decision log D1–D24)
 2. `docs/product-doc.md` (v3 specification; section numbers below refer to it)
 3. this file
 
@@ -27,16 +27,19 @@ Hard consequences:
 
 ## Stack
 
-Next.js 16 App Router + TypeScript (root `proxy.ts`; `middleware.ts` is the deprecated name) · Tailwind + shadcn/ui (add components on demand) · Supabase (Postgres, Auth, Storage; Singapore) with RLS on every table · `@supabase/ssr` (not auth-helpers) · Zod · PapaParse · `pdfjs-dist` or `unpdf` for PDF text **with positions** (not pdf-parse) · `@anthropic-ai/sdk` (only inside `lib/llm/providers/`) · Resend behind `lib/email/` · Vitest · Vercel. Eval: Python 3 in `eval/` (reportlab, pypdfium2, Pillow, pandas, matplotlib).
+Next.js 16 App Router + TypeScript (root `proxy.ts`; `middleware.ts` is the deprecated name) · Tailwind + shadcn/ui (add components on demand) · Supabase (Postgres, Auth, Storage; Singapore) with RLS on every table · `@supabase/ssr` (not auth-helpers) · Zod · PapaParse · `pdfjs-dist` or `unpdf` for PDF text **with positions** (not pdf-parse) · `@anthropic-ai/sdk` and `openai` (only inside `lib/llm/providers/`) · Resend behind `lib/email/` · Vitest · Vercel. Eval: Python 3 in `eval/` (reportlab, pypdfium2, Pillow, pandas, matplotlib).
 
 Not in MVP unless asked: queues, Python services, vision in the app (vision exists only for the eval), Gmail OAuth, inbox reading, BAST, PO candidate search, partial billing, full SoD, delegation of authority, bank-change workflow, LangGraph/MCP/agent frameworks, fine-tuning.
 
 ## LLM layer (product doc 6.5)
 
 - App code calls only `generateStructured()` and `runToolLoop()` from `lib/llm`. Never import a provider SDK outside `lib/llm/providers/`.
-- Messages and tools use an internal format; the adapter (`lib/llm/providers/anthropic.ts`) translates.
-- Models, effort, and the price table per purpose live in `lib/llm/config.ts`. Defaults: `claude-sonnet-5-5` for extraction, agent, and chatbot; `claude-haiku-5-5` for match explanations. Never hardcode model strings elsewhere.
-- Structured outputs via `output_config.format` with a JSON schema generated from Zod; Zod validates anyway; retry once.
+- `LLM_PROVIDER` selects the provider (`deepseek` | `anthropic`, D23). Development and the demo run on DeepSeek through `lib/llm/providers/openai-compatible.ts`; `lib/llm/providers/anthropic.ts` stays tested and is the path for vision and eval comparisons.
+- The `openai` package, like `@anthropic-ai/sdk`, is allowed only inside `lib/llm/providers/`.
+- **Synthetic/demo data only.** DeepSeek processes data on its own servers (China). Real client invoices must not be sent to any provider until a per-client data-residency decision is made (D15, D23).
+- Messages and tools use an internal format; the adapters translate.
+- Models, effort, and the price table per purpose live in `lib/llm/config.ts`. On `anthropic` the defaults are `claude-sonnet-5-5` for extraction, agent, and chatbot and `claude-haiku-5-5` for match explanations; DeepSeek models come from `docs/llm-context/deepseek.md`. Never hardcode model strings elsewhere.
+- Structured outputs: `output_config.format` with a JSON schema generated from Zod on Anthropic; the method confirmed in `docs/llm-context/deepseek.md` on DeepSeek. Zod validates anyway; retry once.
 - Every prompt has a `PROMPT_VERSION` constant. Every call is logged to `llm_calls` (purpose, model, prompt_version, tokens, cost estimate, latency, ok, error_code) via `lib/llm/log-call.ts`.
 
 ## Domain vocabulary and enums (product doc 8)
@@ -61,6 +64,7 @@ Indonesian terms: NPWP (tax ID), PO, DPP (pre-tax amount = `subtotal`), PPN (VAT
 - `verified` iff every applicable deterministic signal passes AND `confidence ≠ low`. Manual corrections → `manual`.
 - Money parsing accepts `15.750.000,00`, `15,750,000.00`, with/without `Rp`. Dates: common Indonesian/English formats, `dd/mm` assumed.
 - Arithmetic: `subtotal + tax_amount = total_amount` (±Rp 1; non-PKP: subtotal = total); Σ line_subtotal ≈ subtotal (±0.5%); qty × unit_price = line_subtotal (±Rp 1).
+- Non-PKP (D24): `tax_amount` null or 0 is `verified` only if subtotal = total (±Rp 1), both verified or manual, and no tax keyword is on the page.
 - `CHECKS_VERSION` is stored with every extraction.
 
 ## Matching engine contract (product doc 7)
@@ -85,6 +89,8 @@ Tests first for every deterministic folder; 100% coverage on `lib/matching`.
 - `PARTIAL_MATCH` / `NO_MATCH` → tick every flagged item (each score component below max, each unverified field) + reason.
 - `anomaly_flag` → ticks + reason ≥ `ANOMALY_REASON_MIN_CHARS` (20).
 - `REJECTED` → no approve path in UI or API; investigation note only.
+- Corrections (D25): `REJECTED` match → 409 `VETO_LOCKED` for every field; the path out is an investigation note + a new document. Decided match → 409 `DECISION_LOCKED`. Allowed only with no match yet, or `PENDING_REVIEW` and not `REJECTED`.
+- A manually corrected field not grounded in the document is shown as "nilai manual, tidak ada di dokumen" and is a required tick on every non-veto match, one-click included (D25).
 - Reject always needs a reason. Mark PAID: approver only (admin cannot), from `APPROVED` only.
 - Server recomputes required items with `requiredReviewItems()` and rejects (400) incomplete submissions. Every review writes `review_sessions` + `audit_logs`.
 - AI-written text (explanations, drafts) is labelled "Dibuat AI" in the UI.

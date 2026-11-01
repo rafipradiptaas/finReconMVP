@@ -9,6 +9,7 @@
     "bank_account_number": "1234567890",
     "bank_account_holder": "PT SINAR LOGISTIK NUSANTARA",
     "subtotal": 24000000,
+    "tax_amount": 2640000,
     "total_amount": 26640000,
     "line_items": [
       {
@@ -29,8 +30,7 @@
       "match_status": "FULL_MATCH",
       "veto_code": null,
       "anomaly_flag": false
-    },
-    "tax_amount": 2640000
+    }
   },
   "02_partial_price_plus3pct_V003.pdf": {
     "invoice_number": "INV-CPI-0342",
@@ -42,6 +42,7 @@
     "bank_account_number": "0987654321",
     "bank_account_holder": "PT CAHAYA PRINT INDONESIA",
     "subtotal": 11896500,
+    "tax_amount": 1308615,
     "total_amount": 13205115,
     "line_items": [
       {
@@ -62,8 +63,7 @@
       "match_status": "PARTIAL_MATCH",
       "veto_code": null,
       "anomaly_flag": false
-    },
-    "tax_amount": 1308615
+    }
   },
   "03_veto_bank_mismatch_V004.pdf": {
     "invoice_number": "INV-NKS-2026-088",
@@ -75,6 +75,7 @@
     "bank_account_number": "009901987654321",
     "bank_account_holder": "PT NUSANTARA KOMPUTER SEJAHTERA",
     "subtotal": 71250000,
+    "tax_amount": 7837500,
     "total_amount": 79087500,
     "line_items": [
       {
@@ -95,8 +96,7 @@
       "match_status": "REJECTED",
       "veto_code": "VETO_BANK_MISMATCH",
       "anomaly_flag": false
-    },
-    "tax_amount": 7837500
+    }
   },
   "04_needs_correction_no_invoice_number_V005.pdf": {
     "invoice_number": null,
@@ -108,6 +108,7 @@
     "bank_account_number": "5566778899",
     "bank_account_holder": "PT BUMI KATERING PRIMA",
     "subtotal": 20250000,
+    "tax_amount": 2227500,
     "total_amount": 22477500,
     "line_items": [
       {
@@ -123,8 +124,7 @@
       "veto_code": null,
       "anomaly_flag": false,
       "after_manual_correction": "FULL_MATCH"
-    },
-    "tax_amount": 2227500
+    }
   },
   "05_full_match_vendor_needs_review_V002.pdf": {
     "invoice_number": "INV-MJT-2026-11",
@@ -136,6 +136,7 @@
     "bank_account_number": "1370012345678",
     "bank_account_holder": "CV MAJU JAYA TEKNIK",
     "subtotal": 3900000,
+    "tax_amount": 0,
     "total_amount": 3900000,
     "line_items": [
       {
@@ -157,8 +158,7 @@
       "veto_code": null,
       "anomaly_flag": false,
       "vendor_indicator": "Perlu Review"
-    },
-    "tax_amount": 0
+    }
   },
   "06_anomaly_8x_history_V009.pdf": {
     "invoice_number": "INV-DMK-2026-0902",
@@ -170,6 +170,7 @@
     "bank_account_number": "1560011223344",
     "bank_account_holder": "PT DIGITAL MEDIA KREATIF",
     "subtotal": 120000000,
+    "tax_amount": 13200000,
     "total_amount": 133200000,
     "line_items": [
       {
@@ -184,8 +185,7 @@
       "match_status": "FULL_MATCH",
       "veto_code": null,
       "anomaly_flag": true
-    },
-    "tax_amount": 13200000
+    }
   },
   "07_veto_vendor_unverified_V006.pdf": {
     "invoice_number": "GKI/INV/2026/045",
@@ -197,6 +197,7 @@
     "bank_account_number": "1450098765432",
     "bank_account_holder": "PT GLOBAL KIMIA INDO",
     "subtotal": 14400000,
+    "tax_amount": 1584000,
     "total_amount": 15984000,
     "line_items": [
       {
@@ -211,8 +212,7 @@
       "match_status": "REJECTED",
       "veto_code": "VETO_VENDOR_NOT_VERIFIED",
       "anomaly_flag": false
-    },
-    "tax_amount": 1584000
+    }
   },
   "08_no_match_unknown_po_V010.pdf": {
     "invoice_number": "INV-PAK-2026-0301",
@@ -224,6 +224,7 @@
     "bank_account_number": "7788990011",
     "bank_account_holder": "PT PRIMA ALAT KANTOR",
     "subtotal": 15000000,
+    "tax_amount": 1650000,
     "total_amount": 16650000,
     "line_items": [
       {
@@ -250,19 +251,19 @@
       "match_status": "NO_MATCH",
       "veto_code": null,
       "anomaly_flag": false
-    },
-    "tax_amount": 1650000
+    }
   },
   "09_veto_vendor_not_found_fake_vendor.pdf": {
-    "invoice_number": "INV-SLNA-2026-002",
+    "invoice_number": "INV-SLA-2026-002",
     "invoice_date": "2026-08-07",
-    "vendor_name": "PT Sinar Logistik Nusantara Abadi",
+    "vendor_name": "PT Sinar Logistik Antarpulau",
     "npwp": "019988776655000",
     "po_number": "PO-2026-010",
     "bank_name": "BCA",
     "bank_account_number": "6655443322",
-    "bank_account_holder": "PT SINAR LOGISTIK NUSANTARA ABADI",
+    "bank_account_holder": "PT SINAR LOGISTIK ANTARPULAU",
     "subtotal": 19200000,
+    "tax_amount": 2112000,
     "total_amount": 21312000,
     "line_items": [
       {
@@ -277,12 +278,26 @@
       "match_status": "REJECTED",
       "veto_code": "VETO_VENDOR_NOT_FOUND",
       "anomaly_flag": false
-    },
-    "tax_amount": 2112000
+    }
   },
   "10_unsupported_scanned_image_only.pdf": {
+    "invoice_number": null,
+    "invoice_date": null,
+    "vendor_name": null,
+    "npwp": null,
+    "po_number": null,
+    "bank_name": null,
+    "bank_account_number": null,
+    "bank_account_holder": null,
+    "subtotal": null,
+    "tax_amount": null,
+    "total_amount": null,
+    "line_items": [],
     "expected": {
-      "document_status": "UNSUPPORTED_FORMAT"
+      "document_status": "UNSUPPORTED_FORMAT",
+      "match_status": null,
+      "veto_code": null,
+      "anomaly_flag": false
     }
   }
 }

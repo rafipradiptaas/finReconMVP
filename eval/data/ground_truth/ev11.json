@@ -1,0 +1,53 @@
+{
+  "doc_id": "ev11",
+  "file": "eval/data/pdfs/ev11.pdf",
+  "template": "faktur",
+  "variant": {
+    "date_format": "dmy_dash",
+    "number_format": "id_dec",
+    "po_placement": "footer",
+    "non_pkp": true,
+    "second_bank": false,
+    "multi_page": true,
+    "narrow_desc": true
+  },
+  "fields": {
+    "invoice_number": "PAK/2026/X/07",
+    "invoice_date": "2026-10-05",
+    "vendor_name": "PT Prima Alat Kantor",
+    "npwp": "010234567891000",
+    "po_number": "PO-2026-008",
+    "bank_name": "BCA",
+    "bank_account_number": "7788990011",
+    "bank_account_holder": "PT PRIMA ALAT KANTOR",
+    "subtotal": 15000000,
+    "tax_amount": 0,
+    "total_amount": 15000000,
+    "line_items": [
+      {
+        "description": "Kertas A4 80gsm (rim)",
+        "quantity": 100,
+        "unit_price": 52000,
+        "subtotal": 5200000
+      },
+      {
+        "description": "Toner HP 85A",
+        "quantity": 10,
+        "unit_price": 890000,
+        "subtotal": 8900000
+      },
+      {
+        "description": "Pulpen gel (lusin)",
+        "quantity": 25,
+        "unit_price": 36000,
+        "subtotal": 900000
+      }
+    ]
+  },
+  "expected": {
+    "document_status": "EXTRACTED",
+    "match_status": null,
+    "veto_code": null,
+    "anomaly_flag": false
+  }
+}

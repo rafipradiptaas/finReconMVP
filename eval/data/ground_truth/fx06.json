@@ -1,0 +1,41 @@
+{
+  "doc_id": "fx06",
+  "file": "fixtures/invoices/06_anomaly_8x_history_V009.pdf",
+  "template": "classic",
+  "variant": {
+    "date_format": "iso",
+    "number_format": "id",
+    "po_placement": "header",
+    "non_pkp": false,
+    "second_bank": false,
+    "multi_page": false,
+    "narrow_desc": false
+  },
+  "fields": {
+    "invoice_number": "INV-DMK-2026-0902",
+    "invoice_date": "2026-08-02",
+    "vendor_name": "PT Digital Media Kreatif",
+    "npwp": "099123456789000",
+    "po_number": "PO-2026-007",
+    "bank_name": "Mandiri",
+    "bank_account_number": "1560011223344",
+    "bank_account_holder": "PT DIGITAL MEDIA KREATIF",
+    "subtotal": 120000000,
+    "tax_amount": 13200000,
+    "total_amount": 133200000,
+    "line_items": [
+      {
+        "description": "Produksi video profil perusahaan",
+        "quantity": 1,
+        "unit_price": 120000000,
+        "subtotal": 120000000
+      }
+    ]
+  },
+  "expected": {
+    "document_status": "EXTRACTED",
+    "match_status": "FULL_MATCH",
+    "veto_code": null,
+    "anomaly_flag": true
+  }
+}

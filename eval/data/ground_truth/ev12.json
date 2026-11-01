@@ -1,0 +1,47 @@
+{
+  "doc_id": "ev12",
+  "file": "eval/data/pdfs/ev12.pdf",
+  "template": "banner",
+  "variant": {
+    "date_format": "dmy_slash",
+    "number_format": "id",
+    "po_placement": "notes",
+    "non_pkp": false,
+    "second_bank": false,
+    "multi_page": false,
+    "narrow_desc": false
+  },
+  "fields": {
+    "invoice_number": "MJT-1007-B",
+    "invoice_date": "2026-10-07",
+    "vendor_name": "CV Maju Jaya Tehnik",
+    "npwp": "022345678912000",
+    "po_number": "PO-2026-002",
+    "bank_name": "Mandiri",
+    "bank_account_number": "1370012345678",
+    "bank_account_holder": "CV MAJU JAYA TEKNIK",
+    "subtotal": 3900000,
+    "tax_amount": 429000,
+    "total_amount": 4329000,
+    "line_items": [
+      {
+        "description": "Servis AC split 2 PK",
+        "quantity": 8,
+        "unit_price": 350000,
+        "subtotal": 2800000
+      },
+      {
+        "description": "Freon R32 (kg)",
+        "quantity": 4,
+        "unit_price": 275000,
+        "subtotal": 1100000
+      }
+    ]
+  },
+  "expected": {
+    "document_status": "EXTRACTED",
+    "match_status": null,
+    "veto_code": null,
+    "anomaly_flag": false
+  }
+}

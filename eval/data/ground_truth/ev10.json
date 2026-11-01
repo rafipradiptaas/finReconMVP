@@ -1,0 +1,41 @@
+{
+  "doc_id": "ev10",
+  "file": "eval/data/pdfs/ev10.pdf",
+  "template": "classic",
+  "variant": {
+    "date_format": "id_long",
+    "number_format": "idr_en",
+    "po_placement": "header",
+    "non_pkp": false,
+    "second_bank": false,
+    "multi_page": false,
+    "narrow_desc": false
+  },
+  "fields": {
+    "invoice_number": "GKI/INV/2026/061",
+    "invoice_date": "2026-10-03",
+    "vendor_name": "PT Global Kimia Indo",
+    "npwp": "066789123456000",
+    "po_number": "PO-2026-009",
+    "bank_name": "Mandiri",
+    "bank_account_number": "1450098765432",
+    "bank_account_holder": "PT GLOBAL KIMIA INDO",
+    "subtotal": 14400000,
+    "tax_amount": 1584000,
+    "total_amount": 15984000,
+    "line_items": [
+      {
+        "description": "Bahan kimia pembersih industri (drum)",
+        "quantity": 6,
+        "unit_price": 2400000,
+        "subtotal": 14400000
+      }
+    ]
+  },
+  "expected": {
+    "document_status": "EXTRACTED",
+    "match_status": null,
+    "veto_code": null,
+    "anomaly_flag": false
+  }
+}

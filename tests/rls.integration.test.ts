@@ -5,7 +5,7 @@ import { fixtureOrgId } from './helpers/fixture-org';
 /**
  * Proves the permission model against the real database (decision D21): no
  * user sees another organization's rows, and the public anon key can read but
- * never write, on every table. Run with 0002_v3.sql applied.
+ * never write, on every table. Run with 0003_d22.sql applied.
  */
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -275,6 +275,28 @@ describe.skipIf(!configured)('database permissions', () => {
       } finally {
         await admin.from('profiles').update({ deactivated_at: null }).eq('id', userAId);
       }
+    });
+  });
+
+  describe('migration 0003 (D22)', () => {
+    it('anon cannot execute current_org_id()', async () => {
+      const { error } = await createClient(url!, anonKey!, options).rpc('current_org_id');
+      expect(error?.code).toBe(INSUFFICIENT_PRIVILEGE);
+    });
+
+    it('an invoice without a document must be imported history', async () => {
+      const rejected = await admin
+        .from('invoices')
+        .insert({ organization_id: orgA, imported_history: false });
+      expect(rejected.error?.message).toMatch(/invoices_document_required/);
+
+      const { data, error } = await admin
+        .from('invoices')
+        .insert({ organization_id: orgA, imported_history: true })
+        .select('id')
+        .single();
+      expect(error).toBeNull();
+      await admin.from('invoices').delete().eq('id', data!.id);
     });
   });
 

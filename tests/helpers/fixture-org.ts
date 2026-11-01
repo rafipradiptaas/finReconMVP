@@ -23,3 +23,24 @@ export async function fixtureOrgId(admin: SupabaseClient): Promise<string> {
   if (insertError) throw insertError;
   return data.id;
 }
+
+const FIXTURE_REVIEWER = 'fixture-reviewer@finrecon.test';
+
+/** For a test that needs a real audit row: a user with one can never be deleted (D21). */
+export async function fixtureReviewerId(admin: SupabaseClient, organizationId: string): Promise<string> {
+  const { data, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  if (error) throw error;
+  const existing = data.users.find((user) => user.email === FIXTURE_REVIEWER);
+  if (existing) return existing.id;
+
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email: FIXTURE_REVIEWER,
+    email_confirm: true,
+  });
+  if (createError) throw createError;
+  const { error: profileError } = await admin
+    .from('profiles')
+    .insert({ id: created.user.id, organization_id: organizationId, role: 'approver' });
+  if (profileError) throw profileError;
+  return created.user.id;
+}
