@@ -97,7 +97,9 @@ export default async function MatchesPage() {
                     </p>
                   )}
                 </TableCell>
-                <TableCell>{REVIEW_STATUS_LABELS[match.review_status]}</TableCell>
+                <TableCell>
+                  {match.status === 'REJECTED' ? '-' : REVIEW_STATUS_LABELS[match.review_status]}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

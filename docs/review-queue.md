@@ -38,8 +38,8 @@ Waiting for your review before Phase 3 steps 5–6 start.
 - [x] Phase 3.6 documents UI + correction
 - [x] Phase 3.7 extract-batch + eval:smoke
 - [x] Phase 4.8 matching tests (written, waiting for your review)
-- [ ] Phase 4.9 matching engine (not started)
-- [ ] Phase 4.10 integration + /matches (not started)
+- [x] Phase 4.9 matching engine
+- [x] Phase 4.10 integration + /matches
 - [x] Part 5 final report (`docs/session-b-report.md`, stopped early)
 
 ## Decisions I took
@@ -66,7 +66,7 @@ Waiting for your review before Phase 3 steps 5–6 start.
 ## Known issues to fix when work resumes
 
 - ~~A local failure is logged only as `provider_error`.~~ Fixed: distinct codes in `lib/llm/errors.ts`, and the underlying message is printed.
-- D13 is not proven yet. Fixture 09 was renamed to fall under 0.95, but `lib/matching/similarity.ts` does not exist, so the required sanity test is still to come.
+- A failure inside matching after a document reaches EXTRACTED returns a 500 and leaves the document with no match. Any correction re-runs matching. Add a retry if this is ever seen in practice.
 
 17. **DeepSeek structured output uses strict tool calling** (`DEEPSEEK.structuredMethod`), as the docs confirm it. It needs the `/beta` URL and `thinking: disabled`, because a named `tool_choice` returns 400 in thinking mode. So `effort` has no effect on extraction in this mode. `json_object` is implemented too, keeps thinking on, and is one config value away.
 18. **`deepseek-flash` is the default for every DeepSeek purpose.** `deepseek-v4-pro` is reachable with `--model`; the eval decides (D23).
@@ -85,6 +85,10 @@ Waiting for your review before Phase 3 steps 5–6 start.
 29. **Only `APPROVED`, `PAID` veto as duplicates; `PENDING_REVIEW` warns.** A veto-`REJECTED` invoice also sits at `PENDING_REVIEW`, so its twin gets the warning. It is display-only.
 30. **A `REJECTED` result still returns `poId`** when the PO is found, so the review panel can compare. Score and breakdown stay null.
 31. **One PO line can match one invoice line only,** so a repeated invoice line cannot score twice.
+
+32. **The pending-duplicate warning is computed when `/matches` loads,** not stored, so it clears as soon as the twin is decided. `matches` has no column for it, and `match_completed` audits the value at match time.
+33. **`/matches` hides imported history** and shows `-` under Review for `REJECTED`, which has no review path. Its links go to `/documents/[id]` until the Phase 5 review panel exists.
+34. **`matchDocument` pages through vendors, POs and history,** because PostgREST caps a response at 1000 rows and a short read could silently miss a duplicate.
 
 ## Doc conflicts found (nothing changed)
 

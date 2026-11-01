@@ -28,7 +28,9 @@ npm run dev
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API |
 | `SUPABASE_SERVICE_ROLE_KEY` | idem (server-only, jangan pernah dipakai di client) |
-| `ANTHROPIC_API_KEY` | console.anthropic.com (dipakai mulai Fase 3) |
+| `LLM_PROVIDER` | `deepseek` (default) atau `anthropic` (D23) |
+| `DEEPSEEK_API_KEY` | platform.deepseek.com/api_keys, provider aktif. **Hanya data sintetis/demo** (D23) |
+| `ANTHROPIC_API_KEY` | console.anthropic.com, untuk jalur vision dan perbandingan eval |
 | `EMAIL_MODE` | `dry_run` (default) atau `resend` (dipakai Fase 7) |
 | `RESEND_API_KEY`, `EMAIL_FROM` | resend.com, hanya kalau `EMAIL_MODE=resend` |
 
@@ -110,8 +112,8 @@ Rencana v3 (D14). Vercel staging menunggu perintah manual di bawah.
 - [x] **Fase 1** — skeleton Next.js, migration + RLS, auth, layout dashboard
 - [x] **Fase 1b** — tutup Fase 1: Supabase pulih, shadcn Form, generate types, tes RLS hijau, migration 0002, D21
 - [x] **Fase 2** — master data (vendor & PO, `contact_email`)
-- [ ] Fase 3 — upload → ekstraksi → extraction checks → koreksi, generator v1
-- [ ] Fase 4 — matching engine (test-first)
+- [x] **Fase 3** — upload → ekstraksi → extraction checks → koreksi, generator v1
+- [x] **Fase 4** — matching engine (test-first)
 - [ ] Fase 5 — review panel, gesekan sesuai risiko, SoD, PAID, narasi, audit log (checkpoint demo BizDev)
 - [ ] Fase 6 — eval harness (checkpoint portofolio)
 - [ ] Fase 7 — agent follow-up
