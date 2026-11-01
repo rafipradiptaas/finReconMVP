@@ -1,36 +1,24 @@
 import 'server-only';
 import { logAudit } from '@/lib/audit';
+import { explainMatch } from '@/lib/llm/explain-match';
+import { llmCallsWriter } from '@/lib/llm/log-call';
 import {
   runMatching,
   type HistoryEntry,
   type MatchInvoice,
   type MatchPurchaseOrder,
 } from '@/lib/matching';
+import { buildComparisons } from '@/lib/review';
+import { readAll } from '@/lib/server/read-all';
 import type { WriteContext } from '@/lib/server/write-context';
 import type { Json } from '@/types/database.types';
 import { MATCHING_FAILED_PREFIX } from '@/types/domain';
 
-const PAGE_SIZE = 1000;
-
 /**
- * PostgREST caps a response at 1000 rows, and a short read here would silently
- * miss a duplicate, so every list is paged to the end.
+ * Runs when a document reaches EXTRACTED, by upload or by correction.
  * ponytail: loads the whole organization per match. Filter history by vendor if
  * matching gets slow.
  */
-export async function readAll<Row>(
-  page: (from: number, to: number) => PromiseLike<{ data: Row[] | null; error: unknown }>,
-): Promise<Row[]> {
-  const rows: Row[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await page(from, from + PAGE_SIZE - 1);
-    if (error) throw error;
-    rows.push(...(data ?? []));
-    if ((data ?? []).length < PAGE_SIZE) return rows;
-  }
-}
-
-/** Runs when a document reaches EXTRACTED, by upload or by correction. */
 export async function matchDocument(ctx: WriteContext, documentId: string) {
   const { db, organizationId } = ctx;
 
@@ -110,6 +98,8 @@ export async function matchDocument(ctx: WriteContext, documentId: string) {
         score_breakdown: result.scoreBreakdown as unknown as Json,
         anomaly_flag: result.anomalyFlag,
         anomaly_reason: result.anomalyReason ?? null,
+        // A re-match must not keep the words written about the old result.
+        explanation: null,
         review_status: 'PENDING_REVIEW',
       },
       { onConflict: 'invoice_id' },
@@ -134,7 +124,53 @@ export async function matchDocument(ctx: WriteContext, documentId: string) {
     },
     ctx,
   );
+
+  const { error: clearError } = await db
+    .from('documents')
+    .update({ status_message: null })
+    .eq('id', documentId)
+    .eq('organization_id', organizationId)
+    .like('status_message', `${MATCHING_FAILED_PREFIX}%`);
+  if (clearError) throw clearError;
+
+  const comparisons = [
+    ...buildComparisons(
+      invoice,
+      vendors.find(({ id }) => id === result.vendorId) ?? null,
+      orders.find(({ id }) => id === result.poId) ?? null,
+    ),
+    ...(result.anomalyReason
+      ? [{ field: 'Anomali', invoiceValue: result.anomalyReason, masterValue: null }]
+      : []),
+  ];
+  await saveExplanation(ctx, match.id, {
+    status: result.status,
+    vetoCode: result.vetoCode,
+    scoreBreakdown: result.scoreBreakdown,
+    comparisons,
+  });
   return result;
+}
+
+/** Runs after the decision is stored. Whatever happens here, the match stands. */
+async function saveExplanation(
+  ctx: WriteContext,
+  matchId: string,
+  input: Parameters<typeof explainMatch>[0],
+) {
+  try {
+    const log = llmCallsWriter(ctx.db, ctx.organizationId, { type: 'match', id: matchId });
+    const explanation = await explainMatch(input, { log });
+    if (explanation === null) return;
+    const { error } = await ctx.db
+      .from('matches')
+      .update({ explanation })
+      .eq('id', matchId)
+      .eq('organization_id', ctx.organizationId);
+    if (error) throw error;
+  } catch (error) {
+    console.error(error);
+  }
 }
 
 function failureCode(error: unknown) {
@@ -177,13 +213,6 @@ async function recordMatchingFailure(ctx: WriteContext, documentId: string, erro
 export async function tryMatchDocument(ctx: WriteContext, documentId: string): Promise<boolean> {
   try {
     await matchDocument(ctx, documentId);
-    const { error } = await ctx.db
-      .from('documents')
-      .update({ status_message: null })
-      .eq('id', documentId)
-      .eq('organization_id', ctx.organizationId)
-      .like('status_message', `${MATCHING_FAILED_PREFIX}%`);
-    if (error) throw error;
     return true;
   } catch (error) {
     console.error(error);

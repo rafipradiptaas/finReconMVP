@@ -22,6 +22,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('@/lib/auth', () => ({ getSessionContext: async () => mocks.session }));
 vi.mock('@/lib/audit', () => ({ logAudit: mocks.logAudit }));
 vi.mock('@/lib/llm/extract-invoice', () => ({ extractInvoice: mocks.extractInvoice }));
+vi.mock('@/lib/llm/explain-match', () => ({ explainMatch: async () => null }));
 
 const { POST: upload } = await import('@/app/api/documents/upload/route');
 const { POST: correct } = await import('@/app/api/documents/[id]/correct/route');

@@ -97,6 +97,20 @@ export function isMatchingFailed(statusMessage: string | null | undefined): bool
 }
 
 /** Indonesian labels for the UI. Code stays English; labels do not. */
+export const FIELD_LABELS = {
+  invoice_number: 'Nomor invoice',
+  invoice_date: 'Tanggal invoice',
+  vendor_name: 'Nama vendor',
+  npwp: 'NPWP',
+  po_number: 'Nomor PO',
+  bank_name: 'Bank',
+  bank_account_number: 'Nomor rekening',
+  bank_account_holder: 'Pemilik rekening',
+  subtotal: 'Subtotal (DPP)',
+  tax_amount: 'PPN',
+  total_amount: 'Total',
+} as const;
+
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Admin',
   ap_staff: 'Staf AP',

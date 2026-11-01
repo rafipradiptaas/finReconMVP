@@ -71,6 +71,8 @@ dihapus, hanya dinonaktifkan lewat `profiles.deactivated_at`.
 
 ```bash
 npm test        # unit test + test integrasi RLS (butuh .env.local terisi)
+npm run test:e2e                                         # Chrome + LLM sungguhan, organisasi fixture
+E2E_ORG="Demo Corp" npm run test:e2e -- -g "06_anomaly"  # satu fixture di Demo Corp
 npm run typecheck
 npm run lint
 npm run build
@@ -114,7 +116,7 @@ Rencana v3 (D14). Vercel staging menunggu perintah manual di bawah.
 - [x] **Fase 2** — master data (vendor & PO, `contact_email`)
 - [x] **Fase 3** — upload → ekstraksi → extraction checks → koreksi, generator v1
 - [x] **Fase 4** — matching engine (test-first)
-- [ ] Fase 5 — review panel, gesekan sesuai risiko, SoD, PAID, narasi, audit log (checkpoint demo BizDev)
+- [x] **Fase 5** — review panel, gesekan sesuai risiko, SoD, PAID, narasi, audit log (checkpoint demo BizDev)
 - [ ] Fase 6 — eval harness (checkpoint portofolio)
 - [ ] Fase 7 — agent follow-up
 - [ ] Fase 8 — baseline anomali & chatbot

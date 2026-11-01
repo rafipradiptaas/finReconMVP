@@ -71,5 +71,8 @@ export const PRICE_USD_PER_MTOK: Record<string, { input: number; output: number 
   'deepseek-v4-pro': { input: 1.32, output: 3.96 },
 };
 
+/** A slow explanation is dropped: it must never hold up an upload (product doc 7.6). */
+export const EXPLANATION_TIMEOUT_MS = 15_000;
+
 /** The first try plus one retry when the output fails validation (D19). */
 export const MAX_STRUCTURED_ATTEMPTS = 2;

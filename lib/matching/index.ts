@@ -10,7 +10,14 @@ import type {
 } from './types';
 import { checkVeto, identifyVendor } from './veto';
 
-export type { HistoryEntry, MatchInvoice, MatchPurchaseOrder, MatchResult, MatchVendor } from './types';
+export type {
+  HistoryEntry,
+  MatchInvoice,
+  MatchPurchaseOrder,
+  MatchResult,
+  MatchVendor,
+  ScoreBreakdown,
+} from './types';
 
 type MatchingContext = {
   vendors: MatchVendor[];

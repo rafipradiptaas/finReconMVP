@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { PdfViewer } from '@/components/pdf-viewer/pdf-viewer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,22 +12,23 @@ import type { CheckedField, CheckedInvoice, Evidence, ScalarField } from '@/lib/
 import { normalizeMoney } from '@/lib/extraction-checks/normalize';
 import {
   CRITICAL_EXTRACTION_FIELDS,
+  FIELD_LABELS,
   type FieldConfidence,
   type FieldVerification,
 } from '@/types/domain';
 
-const FIELDS: { name: ScalarField; label: string; money?: boolean }[] = [
-  { name: 'invoice_number', label: 'Nomor invoice' },
-  { name: 'invoice_date', label: 'Tanggal invoice' },
-  { name: 'vendor_name', label: 'Nama vendor' },
-  { name: 'npwp', label: 'NPWP' },
-  { name: 'po_number', label: 'Nomor PO' },
-  { name: 'bank_name', label: 'Bank' },
-  { name: 'bank_account_number', label: 'Nomor rekening' },
-  { name: 'bank_account_holder', label: 'Pemilik rekening' },
-  { name: 'subtotal', label: 'Subtotal (DPP)', money: true },
-  { name: 'tax_amount', label: 'PPN', money: true },
-  { name: 'total_amount', label: 'Total', money: true },
+const FIELDS: { name: ScalarField; money?: boolean }[] = [
+  { name: 'invoice_number' },
+  { name: 'invoice_date' },
+  { name: 'vendor_name' },
+  { name: 'npwp' },
+  { name: 'po_number' },
+  { name: 'bank_name' },
+  { name: 'bank_account_number' },
+  { name: 'bank_account_holder' },
+  { name: 'subtotal', money: true },
+  { name: 'tax_amount', money: true },
+  { name: 'total_amount', money: true },
 ];
 
 const CONFIDENCE_LABELS: Record<FieldConfidence, string> = {
@@ -82,11 +83,14 @@ export function DocumentReview({
   pdfUrl,
   fields,
   editable,
+  children,
 }: {
   documentId: string;
   pdfUrl: string | null;
   fields: CheckedInvoice | null;
   editable: boolean;
+  /** Shown under the fields, in the column beside the PDF. */
+  children?: ReactNode;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Evidence[] | null>(null);
@@ -144,110 +148,114 @@ export function DocumentReview({
         )}
       </div>
 
-      {fields && (
-        <TooltipProvider>
-          <form onSubmit={save} className="space-y-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Field</TableHead>
-                  <TableHead>Nilai</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {FIELDS.map(({ name, label }) => {
-                  const field = fields[name];
-                  const critical = (CRITICAL_EXTRACTION_FIELDS as readonly string[]).includes(name);
-                  return (
-                    <TableRow
-                      key={name}
-                      onMouseEnter={() => setSelected(field.evidence)}
-                      onMouseLeave={() => setSelected(null)}
-                    >
-                      <TableCell>
-                        {label}
-                        {critical && (
-                          <span className="text-destructive" title="Field kritis">
-                            {' '}
-                            *
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="space-y-1">
-                        {editable ? (
-                          <Input
-                            aria-label={label}
-                            value={edits[name] ?? String(field.value ?? '')}
-                            onFocus={() => setSelected(field.evidence)}
-                            onChange={(event) =>
-                              setEdits((all) => ({ ...all, [name]: event.target.value }))
-                            }
-                          />
-                        ) : (
-                          <span>{String(field.value ?? '-')}</span>
-                        )}
-                        {field.value !== null && field.verification !== 'manual' && field.evidence.length === 0 && (
-                          <p className="text-muted-foreground text-xs">Lokasi bukti tidak ditemukan</p>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <VerificationBadge field={field} />
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-
-            {fields.line_items.length > 0 && (
+      <div className="min-w-0 space-y-6">
+        {fields && (
+          <TooltipProvider>
+            <form onSubmit={save} className="space-y-4">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Deskripsi</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Harga</TableHead>
-                    <TableHead className="text-right">Jumlah</TableHead>
+                    <TableHead>Field</TableHead>
+                    <TableHead>Nilai</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {fields.line_items.map((line, index) => (
-                    <TableRow
-                      key={index}
-                      onMouseEnter={() => setSelected(line.evidence)}
-                      onMouseLeave={() => setSelected(null)}
-                    >
-                      <TableCell className="whitespace-normal">{line.value?.description}</TableCell>
-                      <TableCell className="text-right">{line.value?.quantity}</TableCell>
-                      <TableCell className="text-right">
-                        {line.value?.unit_price.toLocaleString('id-ID')}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {line.value?.line_subtotal.toLocaleString('id-ID')}
-                      </TableCell>
-                      <TableCell>
-                        <VerificationBadge field={line} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {FIELDS.map(({ name }) => {
+                    const field = fields[name];
+                    const label = FIELD_LABELS[name];
+                    const critical = (CRITICAL_EXTRACTION_FIELDS as readonly string[]).includes(name);
+                    return (
+                      <TableRow
+                        key={name}
+                        onMouseEnter={() => setSelected(field.evidence)}
+                        onMouseLeave={() => setSelected(null)}
+                      >
+                        <TableCell>
+                          {label}
+                          {critical && (
+                            <span className="text-destructive" title="Field kritis">
+                              {' '}
+                              *
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="space-y-1">
+                          {editable ? (
+                            <Input
+                              aria-label={label}
+                              value={edits[name] ?? String(field.value ?? '')}
+                              onFocus={() => setSelected(field.evidence)}
+                              onChange={(event) =>
+                                setEdits((all) => ({ ...all, [name]: event.target.value }))
+                              }
+                            />
+                          ) : (
+                            <span>{String(field.value ?? '-')}</span>
+                          )}
+                          {field.value !== null && field.verification !== 'manual' && field.evidence.length === 0 && (
+                            <p className="text-muted-foreground text-xs">Lokasi bukti tidak ditemukan</p>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <VerificationBadge field={field} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
-            )}
 
-            {error && (
-              <p className="text-destructive text-sm" role="alert">
-                {error}
-              </p>
-            )}
-            {editable && (
-              <Button type="submit" disabled={busy || Object.keys(edits).length === 0}>
-                {busy ? 'Menyimpan…' : 'Simpan koreksi'}
-              </Button>
-            )}
-          </form>
-        </TooltipProvider>
-      )}
+              {fields.line_items.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Deskripsi</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead className="text-right">Harga</TableHead>
+                      <TableHead className="text-right">Jumlah</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {fields.line_items.map((line, index) => (
+                      <TableRow
+                        key={index}
+                        onMouseEnter={() => setSelected(line.evidence)}
+                        onMouseLeave={() => setSelected(null)}
+                      >
+                        <TableCell className="whitespace-normal">{line.value?.description}</TableCell>
+                        <TableCell className="text-right">{line.value?.quantity}</TableCell>
+                        <TableCell className="text-right">
+                          {line.value?.unit_price.toLocaleString('id-ID')}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {line.value?.line_subtotal.toLocaleString('id-ID')}
+                        </TableCell>
+                        <TableCell>
+                          <VerificationBadge field={line} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+
+              {error && (
+                <p className="text-destructive text-sm" role="alert">
+                  {error}
+                </p>
+              )}
+              {editable && (
+                <Button type="submit" disabled={busy || Object.keys(edits).length === 0}>
+                  {busy ? 'Menyimpan…' : 'Simpan koreksi'}
+                </Button>
+              )}
+            </form>
+          </TooltipProvider>
+        )}
+        {children}
+      </div>
     </div>
   );
 }

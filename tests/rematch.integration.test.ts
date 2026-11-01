@@ -22,6 +22,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('@/lib/auth', () => ({ getSessionContext: async () => mocks.session }));
 vi.mock('@/lib/audit', () => ({ logAudit: mocks.logAudit }));
 vi.mock('@/lib/llm/extract-invoice', () => ({ extractInvoice: mocks.extractInvoice }));
+vi.mock('@/lib/llm/explain-match', () => ({ explainMatch: async () => null }));
 vi.mock('@/lib/matching', async (importActual) => {
   const actual = await importActual<typeof import('@/lib/matching')>();
   return {

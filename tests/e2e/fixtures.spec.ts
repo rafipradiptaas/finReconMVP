@@ -87,6 +87,7 @@ test.describe(`fixture invoices in ${ORG}`, () => {
   let organizationId: string;
   let seeded = false;
   let staff: Page;
+  let approver: Page;
   let adminPage: Page;
   const uploaded: string[] = [];
   const ids: Record<string, string> = {};
@@ -121,8 +122,9 @@ test.describe(`fixture invoices in ${ORG}`, () => {
     organizationId = organization.id;
 
     staff = await signIn(browser, await ensureUser(organizationId, 'ap_staff'));
+    approver = await signIn(browser, await ensureUser(organizationId, 'approver'));
     adminPage = await signIn(browser, await ensureUser(organizationId, 'admin'));
-    staff.on('pageerror', (error) => pageErrors.push(String(error)));
+    for (const page of [staff, approver]) page.on('pageerror', (error) => pageErrors.push(String(error)));
 
     const { count } = await admin
       .from('vendors')
@@ -140,7 +142,10 @@ test.describe(`fixture invoices in ${ORG}`, () => {
   test.afterAll(async () => {
     if (uploaded.length > 0) {
       await admin.storage.from('documents').remove(uploaded.map((id) => `${organizationId}/${id}.pdf`));
-      await admin.from('llm_calls').delete().in('entity_id', uploaded);
+      const matches = must(
+        await admin.from('invoices').select('matches(id)').in('document_id', uploaded),
+      ).flatMap((invoice) => (invoice.matches ? [invoice.matches.id] : []));
+      await admin.from('llm_calls').delete().in('entity_id', [...uploaded, ...matches]);
       await admin.from('documents').delete().in('id', uploaded);
     }
     if (seeded) {
@@ -192,19 +197,107 @@ test.describe(`fixture invoices in ${ORG}`, () => {
     expect((await stateOf(ids['04'])).match?.status).toBe('FULL_MATCH');
   });
 
-  test('a twin warns while pending and is vetoed once the first is approved', async () => {
+  const reviewPanel = async (page: Page, documentId: string) => {
+    const { match } = await stateOf(documentId);
+    await page.goto(`/matches/${match!.id}`);
+    await page.waitForSelector('canvas');
+    return match!;
+  };
+
+  const approveButton = (page: Page) => page.getByRole('button', { name: 'Setujui', exact: true });
+
+  test('the uploader sees why, and has no approve button', async () => {
+    test.skip(!ids['01'], 'needs fixture 01');
+    await reviewPanel(staff, ids['01']);
+    await expect(staff.getByText('Pengunggah dokumen tidak boleh memutuskan match ini.')).toBeVisible();
+    await expect(approveButton(staff)).toHaveCount(0);
+  });
+
+  test('FULL_MATCH: the approver approves in one click, then marks it paid', async () => {
     test.skip(!ids['01'], 'needs fixture 01');
     const twin = await upload(FIXTURES[0], 'twin-while-pending.pdf');
+    ids.twin = twin;
     expect((await stateOf(twin)).match?.status).toBe('FULL_MATCH');
-    await staff.goto('/matches');
-    await expect(staff.getByText('Ada invoice sama yang menunggu review').first()).toBeVisible();
 
-    const first = await stateOf(ids['01']);
-    must(await admin.from('matches').update({ review_status: 'APPROVED' }).eq('id', first.match!.id).select('id'));
+    const match = await reviewPanel(approver, ids['01']);
+    await expect(approver.locator('.ring-yellow-500').first()).toBeVisible();
+    await expect(approver.getByText('Ada invoice lain dengan nomor dan vendor yang sama')).toBeVisible();
+    await expect(approver.getByText('Dibuat AI')).toBeVisible();
+    await approveButton(approver).click();
+    await approver.getByRole('button', { name: 'Tandai dibayar' }).click();
+    await expect(approver.getByText('Dibayar', { exact: true })).toBeVisible();
+
+    const row = must(await admin.from('matches').select('review_status, explanation').eq('id', match.id).single());
+    expect(row.review_status).toBe('PAID');
+    const [session] = must(await admin.from('review_sessions').select('*').eq('match_id', match.id));
+    expect(session).toMatchObject({ decision: 'APPROVED', items_ticked: [] });
+    expect(session.decided_at).not.toBeNull();
+  });
+
+  test('a twin of a paid invoice cannot be approved, and a new one is vetoed', async () => {
+    test.skip(!ids.twin, 'needs the approval above');
+    await reviewPanel(approver, ids.twin);
+    await expect(approver.getByText('Invoice ini hanya bisa ditolak.')).toBeVisible();
+    await expect(approveButton(approver)).toBeDisabled();
+
     const late = await upload(FIXTURES[0], 'twin-after-approval.pdf');
     const state = await stateOf(late);
     expect(state.match?.status).toBe('REJECTED');
     expect(state.match?.veto_code).toBe('VETO_DUPLICATE_INVOICE');
+  });
+
+  test('PARTIAL_MATCH: ticks and a reason open the button, and it is an override', async () => {
+    test.skip(!ids['02'], 'needs fixture 02');
+    const match = await reviewPanel(approver, ids['02']);
+    await expect(approveButton(approver)).toBeDisabled();
+    for (const box of await approver.getByRole('checkbox').all()) await box.click();
+    await expect(approveButton(approver)).toBeDisabled();
+    await approver.getByLabel('Alasan').fill('Harga naik sesuai addendum kontrak');
+    await approveButton(approver).click();
+    await expect(approver.getByText('Disetujui')).toBeVisible();
+
+    const [audit] = must(
+      await admin
+        .from('audit_logs')
+        .select('old_value, new_value')
+        .eq('entity_id', match.id)
+        .eq('action', 'review_decided'),
+    );
+    expect(audit.old_value).toMatchObject({ match_status: 'PARTIAL_MATCH' });
+    expect(audit.new_value).toMatchObject({ override: true });
+  });
+
+  test('REJECTED: no approve button, only an investigation note', async () => {
+    test.skip(!ids['03'], 'needs fixture 03');
+    await reviewPanel(approver, ids['03']);
+    await expect(approver.getByText('Veto: Rekening tidak cocok')).toBeVisible();
+    await expect(approveButton(approver)).toHaveCount(0);
+    await approver.getByLabel('Catatan investigasi').fill('Rekening dicek ke vendor lewat telepon.');
+    await approver.getByRole('button', { name: 'Simpan catatan' }).click();
+    await expect(approver.getByText('Rekening dicek ke vendor lewat telepon.', { exact: true }).last()).toBeVisible();
+  });
+
+  test('anomaly: the panel shows the reason and needs 20 characters', async () => {
+    test.skip(!ids['06'], 'needs fixture 06');
+    await reviewPanel(approver, ids['06']);
+    await expect(approver.getByRole('alert').filter({ hasText: 'rata-rata' })).toBeVisible();
+    for (const box of await approver.getByRole('checkbox').all()) await box.click();
+    await approver.getByLabel('Alasan').fill('terlalu pendek');
+    await expect(approveButton(approver)).toBeDisabled();
+    await approver.getByLabel('Alasan').fill('Proyek tahunan sudah disetujui direksi');
+    await expect(approveButton(approver)).toBeEnabled();
+  });
+
+  test('audit log filters, and only admin and approver can export', async () => {
+    test.skip(!ids['01'], 'needs fixture 01');
+    await approver.goto('/audit-log?action=review_decided');
+    await expect(approver.locator('tbody tr').first()).toContainText('review_decided');
+    const exported = await approver.request.get('/api/audit-log/export?action=review_decided');
+    expect(exported.status()).toBe(200);
+    expect(await exported.text()).toContain('review_decided');
+    await staff.goto('/audit-log');
+    await expect(staff.getByRole('link', { name: 'Ekspor CSV' })).toHaveCount(0);
+    expect((await staff.request.get('/api/audit-log/export')).status()).toBe(403);
   });
 
   test('a failed match shows the rerun button, which restores it', async () => {
@@ -222,8 +315,12 @@ test.describe(`fixture invoices in ${ORG}`, () => {
 
     await staff.goto('/matches');
     await staff.getByRole('button', { name: 'Matching gagal — jalankan ulang' }).click();
-    await expect.poll(async () => (await stateOf(id)).match?.status).toBe('FULL_MATCH');
-    await expect(staff.getByText('Matching gagal')).toHaveCount(0);
+    await expect
+      .poll(async () => must(await admin.from('documents').select('status_message').eq('id', id).single()).status_message)
+      .toBeNull();
+    expect((await stateOf(id)).match?.status).toBe('FULL_MATCH');
+    await staff.reload();
+    await expect(staff.getByRole('button', { name: 'Matching gagal — jalankan ulang' })).toHaveCount(0);
   });
 
   test('/matches lists uploads and hides imported history', async () => {
@@ -240,6 +337,6 @@ test.describe(`fixture invoices in ${ORG}`, () => {
   test('every extraction is logged in llm_calls', async () => {
     test.skip(uploaded.length === 0, 'nothing uploaded');
     const calls = must(await admin.from('llm_calls').select('ok, purpose').in('entity_id', uploaded));
-    expect(calls.filter(({ purpose, ok }) => purpose === 'extract_invoice' && ok).length).toBeGreaterThan(0);
+    expect(calls.some(({ purpose, ok }) => purpose === 'extract_invoice' && ok)).toBe(true);
   });
 });

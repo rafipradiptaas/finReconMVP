@@ -1,24 +1,12 @@
 import { TriangleAlert } from 'lucide-react';
 import Link from 'next/link';
 import { RematchButton } from '@/components/documents/rematch-button';
+import { MatchStatusBadge } from '@/components/matches/match-status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { pendingDuplicateInvoices } from '@/lib/matching';
 import { createClient } from '@/lib/supabase/server';
-import {
-  MATCH_STATUS_LABELS,
-  MATCHING_FAILED_PREFIX,
-  REVIEW_STATUS_LABELS,
-  VETO_LABELS,
-  type MatchStatus,
-} from '@/types/domain';
-
-const VARIANTS: Record<MatchStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  FULL_MATCH: 'default',
-  PARTIAL_MATCH: 'secondary',
-  NO_MATCH: 'outline',
-  REJECTED: 'destructive',
-};
+import { MATCHING_FAILED_PREFIX, REVIEW_STATUS_LABELS, VETO_LABELS } from '@/types/domain';
 
 export default async function MatchesPage() {
   const supabase = await createClient();
@@ -89,10 +77,7 @@ export default async function MatchesPage() {
             {matches.map((match) => (
               <TableRow key={match.id}>
                 <TableCell>
-                  <Link
-                    href={`/documents/${match.invoices.document_id}`}
-                    className="underline underline-offset-4"
-                  >
+                  <Link href={`/matches/${match.id}`} className="underline underline-offset-4">
                     {match.invoices.invoice_number ?? '-'}
                   </Link>
                 </TableCell>
@@ -101,7 +86,7 @@ export default async function MatchesPage() {
                   {match.invoices.total_amount?.toLocaleString('id-ID') ?? '-'}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={VARIANTS[match.status]}>{MATCH_STATUS_LABELS[match.status]}</Badge>
+                  <MatchStatusBadge status={match.status} />
                 </TableCell>
                 <TableCell className="text-right">{match.score ?? '-'}</TableCell>
                 <TableCell className="space-y-1 whitespace-normal">

@@ -2,7 +2,7 @@ import { logAudit } from '@/lib/audit';
 import { parseHistoryCsv } from '@/lib/csv/history';
 import { readCsvUpload } from '@/lib/csv/parse';
 import { normalizeInvoiceNumber } from '@/lib/matching/normalize';
-import { readAll } from '@/lib/server/match-document';
+import { readAll } from '@/lib/server/read-all';
 import { fail, ok, withWriteContext } from '@/lib/server/write-context';
 
 const keyOf = (vendorId: string | null, numberNormalized: string | null, date: string | null) =>

@@ -44,7 +44,7 @@ describe('zone boundaries', () => {
   });
 
   it('pure folders do no I/O', () => {
-    const pure = ALL.filter((path) => /^lib\/(extraction-checks|matching)\//.test(path));
+    const pure = ALL.filter((path) => /^lib\/(extraction-checks|matching|review)\//.test(path));
     const offenders = pure.filter(
       (path) =>
         importsOf(path).some((name) => /supabase|^node:|^fs$|server-only/.test(name)) ||

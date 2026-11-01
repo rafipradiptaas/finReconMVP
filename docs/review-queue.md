@@ -102,11 +102,35 @@ Waiting for your review before Phase 3 steps 5–6 start.
 36. **History rows are keyed on vendor + normalized number + invoice date.** The fixture's two duplicates (H-V001-001, H-V004-001) differ only in date, so all 138 rows import, and a re-import adds nothing.
 37. **History matches carry `status = FULL_MATCH`, `score = null`.** `status` is required, and the rows were paid. `paid_marked_by` stays null: nobody here marked them.
 38. **Import Histori sits on the Purchase Order page,** beside Import PO, admin only.
-39. **The e2e run needs users, and they are permanent:** `e2e-<role>-<org>@finrecon.test`, in the target organization. A user with audit rows cannot be deleted (D21). The four `e2e-…`/`fx-…` users from Session B are still in the fixture organization for the same reason: the old script's `deleteUser` failed without saying so.
+39. **The e2e run needs users, and they are permanent:** `e2e-<role>-<org>@finrecon.test`, in the target organization. A user with audit rows cannot be deleted (D21). The four `e2e-…`/`fx-…` users from Session B are still in the fixture organization for the same reason: the old script's `deleteUser` failed without saying so. One `review-approver-…` auth user from a test run this session stays for the same reason; `tests/helpers/fixture-org.ts` now has a permanent user for that case.
 40. **`tests/e2e/fixtures.spec.ts` merges both of last night's scripts** (`e2e.mjs`: viewer, hover, correction; `fixtures.mjs`: fixture outcomes, duplicates). It uses the installed Chrome, not a downloaded browser.
-41. **Demo Corp, one e2e run:** fixture 06 was uploaded, flagged, then removed. Its audit rows stay (append-only), along with two users: `E2E admin` and `E2E ap_staff`. The history import was run by `E2E admin`, because I do not have the demo passwords and did not reset them.
+41. **Demo Corp, one e2e run:** fixture 06 was uploaded, flagged, then removed. Its audit rows stay (append-only), along with two users: `E2E admin` and `E2E ap_staff`. The history import was run by `E2E admin`: I did not use or reset the demo users' passwords.
+
+**Decisions I took (Phase 5):**
+
+42. **Approve is refused (409) when a twin is already APPROVED or PAID.** This one is beyond the spec. D18.3 only vetoes at matching time, so two pending twins could both be approved once the warning cleared: a double payment. `validateDecision` applies the duplicate veto's own condition at decision time. Reject stays available.
+43. **A decision is refused (409) while a document is marked `MATCHING_FAILED`.** A failed re-match leaves the old match row, which may not describe the corrected invoice. `/matches` shows the rerun button in its place.
+44. **The rows of 9.2 add up.** D6 has no "no anomaly" qualifier on the high-amount row, and the product doc does, so the decision log wins: a high-amount `FULL_MATCH` with an anomaly needs the 5 evidence ticks, the anomaly tick and the reason. Fixture 06 is this case (Rp 133,2 jt).
+45. **An anomaly adds its own tick item,** so a perfect `FULL_MATCH` with an anomaly still has something to tick.
+46. **An unknown total counts as high.** An unverified line item is a required tick too, though line items cannot be corrected.
+47. **The explanation is dropped if it quotes a number we did not give it** (`quotesOnlyInput`), and after 15 seconds. The check is coarse: a number only has to appear inside a given number. The anomaly reason is passed as one comparison row, or the text could call a flagged invoice clean.
+48. **A re-match clears `explanation`,** so old text never sits beside a new result.
+49. **`POST review` opens a session if none is open,** so every decision leaves a `review_sessions` row. A decision made straight through the API shows up as one with almost no time spent.
+50. **`fields_corrected_count`** counts this reviewer's `field_corrected` audit rows since `opened_at`.
+51. **The panel does not edit fields.** It links to the document page, so corrections have one home.
+52. **No migration in Phase 5.** A partial unique index would make `POST session` strictly idempotent; two simultaneous requests can open two rows today. Marked `ponytail:`.
+53. **Review writes are not one transaction,** like every route so far: match, then session, then audit. A conditional update stops double decisions, but a failure between the writes leaves a decision without its audit row, and the route returns 500. Marked `ponytail:`.
+54. **Audit date filters use WIB.** Invalid filter values are ignored. The CSV export escapes formulas, because audit values can quote a vendor's document.
+
+**Open questions for you:**
+
+- **Correction can clear a veto.** Any role can type the master account into `bank_account_number` on the document page, and the re-match then passes `VETO_BANK_MISMATCH`. It is audited, and the field becomes `manual`, but CLAUDE.md says a veto is never overridable. Should a correction be refused on a veto match? Nothing changed.
+- **A pending match is not rechecked at approval, apart from duplicates.** A vendor suspended, or a bank account changed, after matching still approves. D18.5 says re-evaluation means uploading again, so nothing changed.
 
 ## Doc conflicts found (nothing changed)
+
+- D18.5 says "no re-run button". You asked for rematch, so it recovers failures only (Decision 35). The log still says what it said.
+- D6 and product doc 9.2 differ on the high-amount row (Decision 44).
 
 - D10 still says "Loop: Anthropic SDK tool use, own loop in lib/agent/". D19 refines this to `runToolLoop`; CLAUDE.md, product-doc and dev-guide already say so. The D10 line was left as written because the decision log is a record.
 
