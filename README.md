@@ -6,6 +6,8 @@ FinRecon membaca invoice vendor dengan LLM, lalu kode deterministik mengecek set
 
 > Prinsip utama: **LLM hanya membaca. Kode yang mengecek dan memutuskan. Manusia yang menyetujui.**
 
+**Live demo:** [fin-recon-mvp.vercel.app](https://fin-recon-mvp.vercel.app). Berisi data sintetis saja, jadi jangan unggah invoice asli.
+
 ---
 
 ## Kenapa arsitekturnya begini
